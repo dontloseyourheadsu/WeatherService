@@ -46,6 +46,7 @@ public class ForecastController : ControllerBase
 
     /// <summary>
     /// Gets the weather forecast for a given latitude and longitude.
+    /// Updates values every hour.
     /// </summary>
     /// <param name="latitude">Latitude of the location.</param>
     /// <param name="longitude">Longitude of the location.</param>
@@ -55,6 +56,7 @@ public class ForecastController : ControllerBase
     [ProducesResponseType(typeof(ForecastDetailsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetForecast([FromQuery] double latitude, [FromQuery] double longitude, CancellationToken cancellationToken)
     {
         // Validate the latitude and longitude values

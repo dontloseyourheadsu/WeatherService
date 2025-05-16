@@ -10,6 +10,9 @@ builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("Mo
 // Add OpenMeteo settings
 builder.Services.Configure<OpenMeteoSettings>(builder.Configuration.GetSection("OpenMeteoApi"));
 
+// Add Geocoding settings
+builder.Services.Configure<GeocodingSettings>(builder.Configuration.GetSection("GeocodingApi"));
+
 // Register services from WeatherService.Application
 builder.Services.AddApplicationServices();
 
