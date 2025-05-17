@@ -1,8 +1,13 @@
+using Serilog;
 using WeatherService.Api;
 using WeatherService.Application;
 using WeatherService.Application.Models.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+//Add support to logging with SERILOG
+builder.Host.UseSerilog((context, configuration) =>
+    configuration.ReadFrom.Configuration(context.Configuration));
 
 // Add MongoDB settings
 builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDb"));
@@ -34,6 +39,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+//Add support to logging request with SERILOG
+app.UseSerilogRequestLogging();
 
 app.UseHttpsRedirection();
 
