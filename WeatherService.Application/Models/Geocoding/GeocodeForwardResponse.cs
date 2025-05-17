@@ -1,12 +1,27 @@
-﻿namespace WeatherService.Application.Models.Geocoding;
+﻿using System.Text.Json.Serialization;
+
+namespace WeatherService.Application.Models.Geocoding;
 
 /// <summary>
-/// Represents the response from a geocoding forward request.
+/// Represents the result of a geocoding forward request.
 /// </summary>
 internal class GeocodeForwardResponse
 {
     /// <summary>
-    /// Gets or sets the status of the geocoding request.
+    /// Gets or sets the display name of the location.
     /// </summary>
-    public List<GeocodeForwardResult> Results { get; set; } = new List<GeocodeForwardResult>();
+    [JsonPropertyName("display_name")]
+    internal string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the latitude of the location
+    /// </summary>
+    [JsonPropertyName("lat")]
+    internal double Latitude { get; set; }
+
+    /// <summary>
+    /// Gets or sets the longitude of the location.
+    /// </summary>
+    [JsonPropertyName("lon")]
+    internal double Longitude { get; set; }
 }

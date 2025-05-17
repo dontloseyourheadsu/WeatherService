@@ -52,12 +52,12 @@ public class ForecastController : ControllerBase
     /// <param name="longitude">Longitude of the location.</param>
     /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
     /// <returns>An IActionResult containing the forecast details or an error response.</returns>
-    [HttpGet(ApiEndpoints.Forecasts.GetForecast)]
+    [HttpGet(ApiEndpoints.Forecasts.GetForecastByCoordinates)]
     [ProducesResponseType(typeof(ForecastDetailsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetForecast([FromQuery] double latitude, [FromQuery] double longitude, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetForecastByCoordinates([FromQuery] double latitude, [FromQuery] double longitude, CancellationToken cancellationToken)
     {
         // Validate the latitude and longitude values
         if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
@@ -98,6 +98,64 @@ public class ForecastController : ControllerBase
             // Log the exception details
             _logger.LogError(ex, "An unexpected error occurred while fetching the forecast.");
 
+            // Return a 500 Internal Server Error response with a generic error message
+            var errorResponse = new ErrorResponse
+            {
+                Errors = new List<string> { "An unexpected error occurred." }
+            };
+            return StatusCode(StatusCodes.Status500InternalServerError, errorResponse);
+        }
+    }
+
+    /// <summary>
+    /// Gets the weather forecast for a given location name.
+    /// Updates values every hour.
+    /// </summary>
+    /// <param name="location">Location name (city, region, country).</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
+    /// <returns>An IActionResult containing the forecast details or an error response.</returns>
+    [HttpGet(ApiEndpoints.Forecasts.GetForecastByLocation)]
+    [ProducesResponseType(typeof(ForecastDetailsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetForecastByLocation([FromQuery] string location, CancellationToken cancellationToken)
+    {
+        // Validate the location parameter
+        if (string.IsNullOrWhiteSpace(location))
+        {
+            var errorResponse = new ErrorResponse
+            {
+                Errors = new List<string> { "Location cannot be null or empty." }
+            };
+            return BadRequest(errorResponse);
+        }
+
+        try
+        {
+            // Validate the input parameters    
+            var forecastDetailsResult = await _forecastService.GetWeatherForecastAsync(location, cancellationToken);
+            // Check if the result is successful
+            if (forecastDetailsResult.IsSuccess)
+            {
+                // Map the result to the ForecastDetailsResponse
+                var forecastDetailsResponse = forecastDetailsResult.Value.ToForecastDetailsResponse();
+                return Ok(forecastDetailsResponse);
+            }
+            // Log the errors if the result is not successful
+            var errors = forecastDetailsResult.Errors.ToList();
+            _logger.LogWarning("Failed to fetch forecast: {Errors}", errors);
+            // Return a 422 Unprocessable Entity response with the error details
+            var errorResponse = new ErrorResponse
+            {
+                Errors = errors
+            };
+            return StatusCode(StatusCodes.Status422UnprocessableEntity, errorResponse);
+        }
+        catch (Exception ex)
+        {
+            // Log the exception details
+            _logger.LogError(ex, "An unexpected error occurred while fetching the forecast.");
             // Return a 500 Internal Server Error response with a generic error message
             var errorResponse = new ErrorResponse
             {

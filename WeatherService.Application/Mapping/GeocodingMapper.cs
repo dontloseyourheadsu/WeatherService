@@ -13,7 +13,7 @@ internal static class GeocodingMapper
     /// </summary>
     /// <param name="result">Result of the geocoding forward request.</param>
     /// <returns>Geolocation object containing the latitude, longitude, and display name.</returns>
-    internal static Geolocation ToGeolocation(this GeocodeForwardResult result)
+    internal static Geolocation ToGeolocation(this GeocodeForwardResponse result)
     {
         return new Geolocation
         {

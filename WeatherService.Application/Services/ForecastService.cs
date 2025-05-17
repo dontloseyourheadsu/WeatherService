@@ -2,6 +2,7 @@
 using WeatherService.Application.Mapping;
 using WeatherService.Application.Models;
 using WeatherService.Application.Repositories;
+using WeatherService.Application.Services.Geocoding;
 using WeatherService.Application.Services.OpenMeteo;
 using WeatherService.Application.Utilities;
 
@@ -24,6 +25,11 @@ public sealed class ForecastService : IForecastService
     private readonly IOpenMeteoForecastTimeService _forecastTimeService;
 
     /// <summary>
+    /// Service for geocoding location names to coordinates.
+    /// </summary>
+    private readonly IGeocodingService _geocodingService;
+
+    /// <summary>
     /// Service used to retrieve fresh forecasts from Open‑Meteo.
     /// </summary>
     private readonly IOpenMeteoWeatherForecastService _openMeteo;
@@ -39,13 +45,15 @@ public sealed class ForecastService : IForecastService
     /// <param name="repository">MongoDB repository used for caching forecasts.</param>
     /// <param name="forecastTimeService">Service for handling forecast time-related operations.</param>
     /// <param name="openMeteo">Service used to retrieve fresh forecasts from Open‑Meteo.</param>
+    /// <param name="geocodingService">Service for geocoding location names to coordinates.</param>
     /// <param name="logger">Logger for logging information and errors.</param>
-    public ForecastService(IMongoDbForecastRepository repository, IOpenMeteoForecastTimeService forecastTimeService, IOpenMeteoWeatherForecastService openMeteo, ILogger<ForecastService> logger)
+    public ForecastService(IMongoDbForecastRepository repository, IOpenMeteoForecastTimeService forecastTimeService, IGeocodingService geocodingService, IOpenMeteoWeatherForecastService openMeteo, ILogger<ForecastService> logger)
     {
         _logger = logger;
         _forecastTimeService = forecastTimeService;
         _repository = repository;
         _openMeteo = openMeteo;
+        _geocodingService = geocodingService;
     }
 
     /// <inheritdoc />
@@ -62,6 +70,19 @@ public sealed class ForecastService : IForecastService
 
         var fetchResult = await FetchAndStoreForecastAsync(latitude, longitude, cancellationToken);
         return fetchResult;
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<ForecastDetails>> GetWeatherForecastAsync(string location, CancellationToken cancellationToken = default)
+    {
+        var geocodeResult = await _geocodingService.GetGeolocationAsync(location, cancellationToken);
+        if (geocodeResult.IsFailure)
+        {
+            return Result<ForecastDetails>.Failure(geocodeResult.Errors);
+        }
+        var latitude = geocodeResult.Value.Latitude;
+        var longitude = geocodeResult.Value.Longitude;
+        return await GetWeatherForecastAsync(latitude, longitude, cancellationToken);
     }
 
     /// <summary>

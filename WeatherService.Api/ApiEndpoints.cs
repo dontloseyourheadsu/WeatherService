@@ -20,11 +20,19 @@ public static class ApiEndpoints
         /// </summary>
         private const string Base = $"{ApiBase}/forecast";
 
+        /// <summary>
+        /// Path to the forecast controller.
+        /// </summary>
         public const string Echo = $"{Base}/echo";
 
         /// <summary>
-        /// Path to GET forecast data.
+        /// Path to GET forecast data by coordinates.
         /// </summary>
-        public const string GetForecast = Base;
+        public const string GetForecastByCoordinates = $"{Base}/coordinates";
+
+        /// <summary>
+        /// Path to GET forecast data by location.
+        /// </summary>
+        public const string GetForecastByLocation = $"{Base}/location";
     }
 }

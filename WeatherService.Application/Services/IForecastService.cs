@@ -16,4 +16,12 @@ public interface IForecastService
     /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
     /// <returns>Task that represents the asynchronous operation. The task result contains the weather forecast.</returns>
     Task<Result<ForecastDetails>> GetWeatherForecastAsync(double latitude, double longitude, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the weather forecast by city name asynchronously.
+    /// </summary>
+    /// <param name="location">Location name (city, region, country).</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
+    /// <returns>Task that represents the asynchronous operation. The task result contains the weather forecast.</returns>
+    Task<Result<ForecastDetails>> GetWeatherForecastAsync(string location, CancellationToken cancellationToken = default);
 }
