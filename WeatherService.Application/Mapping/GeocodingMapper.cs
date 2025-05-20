@@ -6,14 +6,14 @@ namespace WeatherService.Application.Mapping;
 /// <summary>
 /// Maps geocoding-related data between different layers of the application.
 /// </summary>
-internal static class GeocodingMapper
+public static class GeocodingMapper
 {
     /// <summary>
     /// Maps a GeocodeForwardResult to a Geolocation object.
     /// </summary>
     /// <param name="result">Result of the geocoding forward request.</param>
     /// <returns>Geolocation object containing the latitude, longitude, and display name.</returns>
-    internal static Geolocation ToGeolocation(this GeocodeForwardResponse result)
+    public static Geolocation ToGeolocation(this GeocodeForwardResponse result)
     {
         return new Geolocation
         {

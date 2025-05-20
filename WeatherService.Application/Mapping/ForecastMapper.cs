@@ -7,7 +7,7 @@ namespace WeatherService.Application.Mapping
     /// <summary>
     /// Mapper class for forecast data.
     /// </summary>
-    internal static class ForecastMapper
+    public static class ForecastMapper
     {
         /// <summary>
         /// Creates a <see cref="MongoDbForecast"/> from the given Open-Meteo response and
@@ -21,7 +21,7 @@ namespace WeatherService.Application.Mapping
         /// <param name="sunrise">Sunrise time for the same calendar day, in local time.</param>
         /// <param name="latitude">Latitude of the forecast location.</param>
         /// <param name="longitude">Longitude of the forecast location.</param>
-        internal static MongoDbForecast ToMongoForecast(this OpenMeteoForecastResponse response, int hourlyIndex, DateTime timestampUtc, DateTime sunrise, double latitude, double longitude)
+        public static MongoDbForecast ToMongoForecast(this OpenMeteoForecastResponse response, int hourlyIndex, DateTime timestampUtc, DateTime sunrise, double latitude, double longitude)
             => new()
             {
                 Timestamp = timestampUtc,
@@ -41,7 +41,7 @@ namespace WeatherService.Application.Mapping
         /// </summary>
         /// <param name="mongo">MongoDbForecast instance.</param>
         /// <returns>Forecast details instance.</returns>
-        internal static ForecastDetails ToForecastDetails(this MongoDbForecast mongo) =>
+        public static ForecastDetails ToForecastDetails(this MongoDbForecast mongo) =>
             new(
                 Latitude: mongo.Latitude,
                 Longitude: mongo.Longitude,
