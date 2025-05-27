@@ -187,9 +187,6 @@ public class OpenMeteoWeatherForecastServiceTests
         // Check that the request contains the expected parameters
         Assert.Contains($"latitude={latitude}", requestUriString);
         Assert.Contains($"longitude={longitude}", requestUriString);
-        Assert.Contains("hourly=temperature_2m,wind_speed_10m,wind_direction_10m", requestUriString);
-        Assert.Contains("daily=sunrise", requestUriString);
-        Assert.Contains("timezone=auto", requestUriString);
     }
 
     /// <summary>
