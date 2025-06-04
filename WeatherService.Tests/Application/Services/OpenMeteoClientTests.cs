@@ -19,20 +19,20 @@ public class OpenMeteoWeatherForecastServiceTests
     {
         // Current date and time (for context in the test)
         var currentUtcDateTime = DateTime.Parse("2025-05-26 04:19:23");
-        
+
         // Create a mock handler that we can configure
         _mockHttpMessageHandler = new MockHttpMessageHandler();
-        
+
         // Create a real HTTP client with the mock handler
         _httpClient = new HttpClient(_mockHttpMessageHandler)
         {
             BaseAddress = new Uri("https://api.open-meteo.com/v1/")
         };
-        
+
         // Create the HTTP client factory mock
         _httpClientFactory = Substitute.For<IHttpClientFactory>();
         _httpClientFactory.CreateClient("OpenMeteo").Returns(_httpClient);
-        
+
         // Create the system under test
         _sut = new OpenMeteoWeatherForecastService(_httpClientFactory);
     }
@@ -44,7 +44,7 @@ public class OpenMeteoWeatherForecastServiceTests
         var latitude = 52.52;
         var longitude = 13.41;
         var cancellationToken = CancellationToken.None;
-        
+
         // Create a mock response with all properties as defined in the actual models
         var mockResponse = new OpenMeteoForecastResponse
         {
@@ -53,9 +53,9 @@ public class OpenMeteoWeatherForecastServiceTests
             UtcOffsetSeconds = 3600,
             Hourly = new OpenMeteoHourlyData
             {
-                Time = new List<string> 
-                { 
-                    "2025-05-26T00:00:00Z", 
+                Time = new List<string>
+                {
+                    "2025-05-26T00:00:00Z",
                     "2025-05-26T01:00:00Z",
                     "2025-05-26T02:00:00Z",
                     "2025-05-26T03:00:00Z",
@@ -78,7 +78,7 @@ public class OpenMeteoWeatherForecastServiceTests
                 Sunrise = new List<string> { "2025-05-26T05:12:00Z" }
             }
         };
-        
+
         // Configure the mock handler to return a successful response
         string responseContent = JsonSerializer.Serialize(mockResponse);
         _mockHttpMessageHandler.SetResponseContent(responseContent, HttpStatusCode.OK);
@@ -100,7 +100,7 @@ public class OpenMeteoWeatherForecastServiceTests
         Assert.Equal(1, result.Value.Daily.Time.Count);
         Assert.Equal(1, result.Value.Daily.Sunrise.Count);
         Assert.Equal("2025-05-26T05:12:00Z", result.Value.Daily.Sunrise[0]);
-        
+
         // Verify request was made with expected parameters
         var requestUri = _mockHttpMessageHandler.LastRequestUri;
         Assert.NotNull(requestUri);
@@ -115,14 +115,14 @@ public class OpenMeteoWeatherForecastServiceTests
         var latitude = 52.52;
         var longitude = 13.41;
         var cancellationToken = CancellationToken.None;
-        
+
         // Create a mock error response
         var errorResponse = new OpenMeteoErrorResponse
         {
             Error = true,
             Reason = "Invalid location"
         };
-        
+
         // Configure the mock handler to return an error response
         string responseContent = JsonSerializer.Serialize(errorResponse);
         _mockHttpMessageHandler.SetResponseContent(responseContent, HttpStatusCode.BadRequest);
@@ -143,7 +143,7 @@ public class OpenMeteoWeatherForecastServiceTests
         var latitude = 52.52;
         var longitude = 13.41;
         var cancellationToken = CancellationToken.None;
-        
+
         // Configure the mock handler to throw an exception
         _mockHttpMessageHandler.ShouldThrowException = true;
         _mockHttpMessageHandler.ExceptionToThrow = new HttpRequestException("Connection error");
@@ -164,7 +164,7 @@ public class OpenMeteoWeatherForecastServiceTests
         var latitude = 52.52;
         var longitude = 13.41;
         var cancellationToken = CancellationToken.None;
-        
+
         // Set up a basic response
         var mockResponse = new OpenMeteoForecastResponse
         {
@@ -172,7 +172,7 @@ public class OpenMeteoWeatherForecastServiceTests
             Longitude = longitude,
             UtcOffsetSeconds = 3600
         };
-        
+
         string responseContent = JsonSerializer.Serialize(mockResponse);
         _mockHttpMessageHandler.SetResponseContent(responseContent, HttpStatusCode.OK);
 
@@ -183,7 +183,7 @@ public class OpenMeteoWeatherForecastServiceTests
         var requestUri = _mockHttpMessageHandler.LastRequestUri;
         Assert.NotNull(requestUri);
         var requestUriString = requestUri.ToString();
-        
+
         // Check that the request contains the expected parameters
         Assert.Contains($"latitude={latitude}", requestUriString);
         Assert.Contains($"longitude={longitude}", requestUriString);
