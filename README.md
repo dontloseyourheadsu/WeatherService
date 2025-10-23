@@ -12,6 +12,7 @@ A modern weather forecasting REST API built with .NET and MongoDB, providing rea
 - [Project Structure](#project-structure)
 - [Deployment & Usage](#deployment--usage)
 - [Other Notes](#other-notes)
+- [Requirements](#requirements)
 
 ---
 
@@ -205,29 +206,47 @@ If you prefer to avoid exposing MongoDB on your host, run both the API and Mongo
 
    If you are running the API on the host (not in Docker), you must publish MongoDB's port (use Options A or B). Without publishing, the host cannot reach the internal Docker port.
 
-### Selecting an appsettings variant
+### Setting Up MongoDB with Docker
 
-ASP.NET Core automatically loads `appsettings.json` and overrides with `appsettings.{Environment}.json` if you set the environment.
+To set up MongoDB using Docker, follow these simplified steps:
 
-- Use default (no-auth localhost): just run normally.
-- Use Docker variants for container-to-container networking:
+1. Pull the MongoDB Docker image:
 
-  ```fish
-  # No auth, internal DNS to MongoDB
-  set -x ASPNETCORE_ENVIRONMENT Docker
-  dotnet run --project WeatherService.Api
+   ```fish
+   docker pull mongo
+   ```
 
-  # With auth, internal DNS to MongoDB
-  set -x ASPNETCORE_ENVIRONMENT DockerAuth
-  dotnet run --project WeatherService.Api
-  ```
+2. Run the MongoDB container and expose the port:
 
-Tip: You can also override the connection string via environment variable without editing files:
+   ```fish
+   docker run --name mongodb -d -p 27017:27017 mongo
+   ```
 
-```fish
-set -x MongoDb__ConnectionUri "mongodb://weatheruser:weatherpass@localhost:27017/WeatherDb?authSource=WeatherDb"
-dotnet run --project WeatherService.Api
-```
+   - `-p 27017:27017`: Maps the container's MongoDB port to your local machine.
+   - `--name mongodb`: Names the container `mongodb`.
+
+3. Verify the container is running:
+   ```fish
+   docker ps
+   ```
+
+### Seeding the Database
+
+To seed the MongoDB database with the required collections, run the provided script:
+
+1. Ensure you have Node.js installed.
+2. Navigate to the `scripts` directory:
+   ```fish
+   cd scripts
+   ```
+3. Install dependencies:
+   ```fish
+   npm install
+   ```
+4. Run the seeding script:
+   ```fish
+   node seedDatabase.js
+   ```
 
 ---
 
@@ -237,6 +256,28 @@ dotnet run --project WeatherService.Api
 - **Error Handling:** Custom middleware for uniform error responses.
 - **Extensibility:** The project is designed for easy integration of additional weather providers or caching strategies.
 - **Testing:** (If present in the repo) Tests likely reside in a separate test project or within the `WeatherService.Tests` namespace.
+
+---
+
+## Requirements
+
+### Node.js
+
+- Node.js (v16 or later)
+- MongoDB (v4.4 or later)
+
+### .NET
+
+- .NET 9 SDK
+- ASP.NET Core 9
+
+### Environment Variables
+
+- `GEOCODING_API_KEY`: API key for the Geocoding API. This is required for the application to function correctly. Setup an account at [Geocoding API](https://geocode.maps.co/).
+
+### Additional Notes
+
+- Ensure MongoDB is running locally or update the connection string in `appsettings.json` if using a remote instance.
 
 ---
 

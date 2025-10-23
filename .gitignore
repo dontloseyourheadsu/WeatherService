@@ -361,3 +361,12 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Python / Jupyter
+**/.venv/
+/.venv/
+WeatherServiceAnalysis/.venv/
+**/__pycache__/
+**/.ipynb_checkpoints/
+.python-version
+.DS_Store
