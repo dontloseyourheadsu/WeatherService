@@ -1,0 +1,30 @@
+@model WeatherService.Contracts.Responses.ForecastDetailsResponse
+
+<div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0">
+        <tbody>
+            <tr>
+                <th class="w-25">Latitude</th>
+                <td>@Model.Latitude</td>
+            </tr>
+            <tr>
+                <th>Longitude</th>
+                <td>@Model.Longitude</td>
+            </tr>
+            <tr>
+                <th>Temperature</th>
+                <td>@Model.Temperature @Model.Units?.TemperatureUnit</td>
+            </tr>
+            <tr>
+                <th>Wind</th>
+                <td>@Model.WindSpeed @Model.Units?.WindSpeedUnit, dir @Model.WindDirection
+                    @Model.Units?.WindDirectionUnit</td>
+            </tr>
+            <tr>
+                <th>Sunrise</th>
+                <td>@Model.Sunrise.ToString("u")</td>
+            </tr>
+        </tbody>
+    </table>
+    <small class="text-muted">Values update hourly.</small>
+</div>
