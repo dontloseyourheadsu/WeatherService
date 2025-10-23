@@ -13,34 +13,7 @@ public class WeatherController(IForecastApiClient apiClient, ILogger<WeatherCont
         return View(new WeatherQueryViewModel());
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Echo(WeatherQueryViewModel model, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            return View("Index", model);
-        }
-
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(model.Message))
-            {
-                model.EchoResult = await apiClient.EchoAsync(model.Message, cancellationToken);
-            }
-            else
-            {
-                ModelState.AddModelError(nameof(model.Message), "Please provide a message to echo.");
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Echo call failed");
-            ModelState.AddModelError(string.Empty, "Echo failed: " + ex.Message);
-        }
-
-        return View("Index", model);
-    }
+    // Echo endpoint removed from UI; keeping code clean by removing action.
 
     [HttpPost]
     [ValidateAntiForgeryToken]
