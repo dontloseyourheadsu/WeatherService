@@ -1,14 +1,15 @@
 @model WeatherService.WebApp.Models.WeatherQueryViewModel
 @{
-    ViewData["Title"] = "Weather Queries";
+    ViewData["Title"] = "Weather Dashboard";
+    var forecast = Model.ForecastByLocation ?? Model.ForecastByCoordinates;
 }
 
-<h1 class="mb-4">Weather Queries</h1>
+<h1 class="ws-page-title">Weather Dashboard</h1>
 
 @if (!ViewData.ModelState.IsValid)
 {
-    <div class="alert alert-danger">
-        <ul class="mb-0">
+    <div class="ws-alert ws-alert--error">
+        <ul>
             @foreach (var kvp in ViewData.ModelState)
             {
                 foreach (var error in kvp.Value!.Errors)
@@ -20,76 +21,134 @@
     </div>
 }
 
-<div class="row g-4">
-    <div class="col-12 col-lg-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">Echo</h5>
-                <form asp-action="Echo" method="post">
-                    <div class="mb-3">
-                        <label asp-for="Message" class="form-label"></label>
-                        <input asp-for="Message" class="form-control" />
-                        <span asp-validation-for="Message" class="text-danger"></span>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Send</button>
-                </form>
-                @if (!string.IsNullOrWhiteSpace(Model.EchoResult))
-                {
-                    <div class="mt-3 alert alert-info">@Model.EchoResult</div>
-                }
+<section class="ws-grid">
+    <!-- Card: Forecast by Coordinates -->
+    <div class="ws-card">
+        <h2 class="ws-card__title">By Coordinates</h2>
+        <form asp-action="ByCoordinates" method="post" class="ws-form">
+            <div class="ws-field">
+                <label asp-for="Latitude" class="ws-label"></label>
+                <input asp-for="Latitude" class="ws-input" />
+                <span asp-validation-for="Latitude" class="ws-error"></span>
             </div>
-        </div>
+            <div class="ws-field">
+                <label asp-for="Longitude" class="ws-label"></label>
+                <input asp-for="Longitude" class="ws-input" />
+                <span asp-validation-for="Longitude" class="ws-error"></span>
+            </div>
+            <button type="submit" class="ws-btn ws-btn--primary">Get Forecast</button>
+        </form>
     </div>
 
-    <div class="col-12 col-lg-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">Forecast by Coordinates</h5>
-                <form asp-action="ByCoordinates" method="post">
-                    <div class="mb-3">
-                        <label asp-for="Latitude" class="form-label"></label>
-                        <input asp-for="Latitude" class="form-control" />
-                        <span asp-validation-for="Latitude" class="text-danger"></span>
-                    </div>
-                    <div class="mb-3">
-                        <label asp-for="Longitude" class="form-label"></label>
-                        <input asp-for="Longitude" class="form-control" />
-                        <span asp-validation-for="Longitude" class="text-danger"></span>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Get Forecast</button>
-                </form>
-                @if (Model.ForecastByCoordinates is not null)
-                {
-                    <div class="mt-3">
-                        @await Html.PartialAsync("_ForecastDetails", Model.ForecastByCoordinates)
-                    </div>
-                }
+    <!-- Card: Forecast by Location -->
+    <div class="ws-card">
+        <h2 class="ws-card__title">By Location</h2>
+        <form asp-action="ByLocation" method="post" class="ws-form">
+            <div class="ws-field">
+                <label asp-for="Location" class="ws-label"></label>
+                <input asp-for="Location" class="ws-input" placeholder="e.g., Puebla, Mexico" />
+                <span asp-validation-for="Location" class="ws-error"></span>
             </div>
-        </div>
+            <button type="submit" class="ws-btn ws-btn--primary">Get Forecast</button>
+        </form>
     </div>
 
-    <div class="col-12 col-lg-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">Forecast by Location</h5>
-                <form asp-action="ByLocation" method="post">
-                    <div class="mb-3">
-                        <label asp-for="Location" class="form-label"></label>
-                        <input asp-for="Location" class="form-control" />
-                        <span asp-validation-for="Location" class="text-danger"></span>
+    <!-- Card: Use My Location -->
+    <div class="ws-card">
+        <h2 class="ws-card__title">Use My Location</h2>
+        <p class="ws-card__text">Let the browser detect your location and fetch the forecast.</p>
+        <form asp-action="ByCoordinates" method="post" id="geo-form" class="ws-form">
+            <input type="hidden" name="Latitude" id="geo-lat" />
+            <input type="hidden" name="Longitude" id="geo-lon" />
+            <button type="button" class="ws-btn ws-btn--secondary" id="geo-btn">Detect & Fetch</button>
+        </form>
+        <div class="ws-note">We don't store your location. Used only to fetch the forecast.</div>
+    </div>
+</section>
+
+<!-- Results Section -->
+<section class="ws-results" aria-live="polite">
+    <h2 class="ws-section-title">Results</h2>
+    @if (forecast is null)
+    {
+        <div class="ws-placeholder">Enter a location or use your current location to see the weather.</div>
+    }
+    else
+    {
+        <div class="ws-dashboard">
+            <!-- Summary tile -->
+            <div class="ws-summary" data-temp="@forecast.Temperature">
+                <div class="ws-summary__icon" aria-hidden="true">
+                    <!-- Simple thermometer icon -->
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" role="img" focusable="false">
+                        <path d="M14 14.76V5a3 3 0 10-6 0v9.76a5 5 0 106 0zM12 2a2 2 0 012 2v10.09l.3.26a4 4 0 11-4.6 0l.3-.26V4a2 2 0 012-2z"></path>
+                    </svg>
+                </div>
+                <div class="ws-summary__content">
+                    <div class="ws-temp">
+                        <span class="ws-temp__value">@forecast.Temperature</span>
+                        <span class="ws-temp__unit">@forecast.Units?.TemperatureUnit</span>
                     </div>
-                    <button type="submit" class="btn btn-primary">Get Forecast</button>
-                </form>
-                @if (Model.ForecastByLocation is not null)
-                {
-                    <div class="mt-3">
-                        @await Html.PartialAsync("_ForecastDetails", Model.ForecastByLocation)
+                    <div class="ws-meta">Lat @forecast.Latitude, Lon @forecast.Longitude</div>
+                </div>
+            </div>
+
+            <!-- Detail tiles -->
+            <div class="ws-tiles">
+                <div class="ws-tile">
+                    <div class="ws-tile__icon" aria-hidden="true">
+                        <!-- wind icon -->
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4 12h10a3 3 0 100-6 1 1 0 110-2 5 5 0 010 10H4a1 1 0 110-2zm2 6h9a2 2 0 100-4 1 1 0 110-2 4 4 0 010 8H6a1 1 0 110-2z"/></svg>
                     </div>
-                }
+                    <div class="ws-tile__content">
+                        <div class="ws-tile__label">Wind</div>
+                        <div class="ws-tile__value">@forecast.WindSpeed @forecast.Units?.WindSpeedUnit</div>
+                        <div class="ws-tile__sub">Direction: @forecast.WindDirection @forecast.Units?.WindDirectionUnit</div>
+                    </div>
+                </div>
+
+                <div class="ws-tile">
+                    <div class="ws-tile__icon" aria-hidden="true">
+                        <!-- sunrise icon -->
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 13h18v2H3v-2zm9-9l3 3h-2v4h-2V7H9l3-3zm-7 14h14a5 5 0 00-10 0z"/></svg>
+                    </div>
+                    <div class="ws-tile__content">
+                        <div class="ws-tile__label">Sunrise</div>
+                        <div class="ws-tile__value">@forecast.Sunrise.ToString("t")</div>
+                        <div class="ws-tile__sub">UTC: @forecast.Sunrise.ToString("u")</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Classic details table (secondary) -->
+            <div class="ws-details">
+                @await Html.PartialAsync("_ForecastDetails", forecast)
             </div>
         </div>
-    </div>
-</div>
+
+        <!-- Tabs for future expansion -->
+        <div class="ws-tabs" id="ws-tabs">
+            <button class="ws-tab ws-tab--active" data-tab="current">Current</button>
+            <button class="ws-tab" data-tab="hourly">Hourly</button>
+            <button class="ws-tab" data-tab="daily">Daily</button>
+            <button class="ws-tab" data-tab="analysis">Analysis</button>
+        </div>
+        <div class="ws-tabpanes">
+            <div class="ws-tabpane ws-tabpane--active" data-tab="current">
+                <p class="ws-note">Current conditions are shown in the summary above.</p>
+            </div>
+            <div class="ws-tabpane" data-tab="hourly">
+                <p class="ws-placeholder">Hourly trends coming soon.</p>
+            </div>
+            <div class="ws-tabpane" data-tab="daily">
+                <p class="ws-placeholder">Daily forecast charts coming soon.</p>
+            </div>
+            <div class="ws-tabpane" data-tab="analysis">
+                <p class="ws-placeholder">Admin analysis area placeholder. Historical averages, deviations, and custom ranges will appear here.</p>
+            </div>
+        </div>
+    }
+</section>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

@@ -1,30 +1,10 @@
 @model WeatherService.Contracts.Responses.ForecastDetailsResponse
 
-<div class="table-responsive">
-    <table class="table table-sm table-bordered align-middle mb-0">
-        <tbody>
-            <tr>
-                <th class="w-25">Latitude</th>
-                <td>@Model.Latitude</td>
-            </tr>
-            <tr>
-                <th>Longitude</th>
-                <td>@Model.Longitude</td>
-            </tr>
-            <tr>
-                <th>Temperature</th>
-                <td>@Model.Temperature @Model.Units?.TemperatureUnit</td>
-            </tr>
-            <tr>
-                <th>Wind</th>
-                <td>@Model.WindSpeed @Model.Units?.WindSpeedUnit, dir @Model.WindDirection
-                    @Model.Units?.WindDirectionUnit</td>
-            </tr>
-            <tr>
-                <th>Sunrise</th>
-                <td>@Model.Sunrise.ToString("u")</td>
-            </tr>
-        </tbody>
-    </table>
-    <small class="text-muted">Values update hourly.</small>
+<div class="ws-details-table">
+    <div class="ws-details-row"><div class="ws-details-key">Latitude</div><div class="ws-details-val">@Model.Latitude</div></div>
+    <div class="ws-details-row"><div class="ws-details-key">Longitude</div><div class="ws-details-val">@Model.Longitude</div></div>
+    <div class="ws-details-row"><div class="ws-details-key">Temperature</div><div class="ws-details-val">@Model.Temperature @Model.Units?.TemperatureUnit</div></div>
+    <div class="ws-details-row"><div class="ws-details-key">Wind</div><div class="ws-details-val">@Model.WindSpeed @Model.Units?.WindSpeedUnit, dir @Model.WindDirection @Model.Units?.WindDirectionUnit</div></div>
+    <div class="ws-details-row"><div class="ws-details-key">Sunrise</div><div class="ws-details-val">@Model.Sunrise.ToString("u")</div></div>
 </div>
+<div class="ws-note">Values update hourly.</div>

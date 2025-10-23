@@ -5,12 +5,6 @@ namespace WeatherService.WebApp.Models;
 
 public class WeatherQueryViewModel
 {
-    // Echo
-    [Display(Name = "Message to echo")]
-    public string? Message { get; set; }
-
-    public string? EchoResult { get; set; }
-
     // Coordinates
     [Range(-90, 90)]
     public double Latitude { get; set; }
