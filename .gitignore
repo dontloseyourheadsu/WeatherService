@@ -373,3 +373,8 @@ WeatherServiceAnalysis/.venv/
 
 # Datasets
 **era5_land_data/
+
+# Environment files
+.env
+**/.env
+**/.env.local

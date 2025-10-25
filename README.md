@@ -299,6 +299,56 @@ This script downloads data from the Copernicus Climate Data Store (CDS).
 
 ---
 
+## WeatherServiceAnalysis: Notebook and ETL (.venv + .env)
+
+Both the Jupyter notebook (`WeatherServiceAnalysis/analytics.ipynb`) and the ETL script (`WeatherServiceAnalysis/store-weather-data.py`) are intended to run using the repository's local Python virtual environment `.venv` and a per-folder `.env` file.
+
+### Python environment (.venv)
+
+- Ensure the workspace is using the local interpreter at `.venv/bin/python`.
+- In VS Code, select the kernel associated with `.venv` when opening the notebook.
+- If extra packages are needed for the ETL (xarray, netCDF4, numpy, pandas, pymongo, python-dotenv), install them into `.venv`.
+
+### Environment variables (.env)
+
+- Create `WeatherServiceAnalysis/.env` (do not commit it; it is git-ignored). A starter file is provided at `WeatherServiceAnalysis/.env.example`.
+- Required variables:
+  - `MONGODB_URI` – MongoDB connection string (defaults to `mongodb://localhost:27017`).
+  - `MONGODB_DB` – Database name (defaults to `WeatherDb`).
+  - `MONGODB_COLLECTION` – Collection name (defaults to `Forecasts`).
+  - `NETCDF_PATH_PATTERN` – Path pattern to your NetCDF files relative to `WeatherServiceAnalysis/` (defaults to `era5_land_data/*.nc`).
+- The ETL script also supports legacy names as fallback: `MONGO_URI`, `MONGO_DB_NAME`, `MONGO_COLLECTION_NAME`.
+
+### Running the ETL
+
+- Place your ERA5-Land NetCDF files under `WeatherServiceAnalysis/era5_land_data/` (this folder is git-ignored).
+- Run the script using the `.venv` interpreter:
+
+  ```fish
+  # From the repo root
+  ./.venv/bin/python WeatherServiceAnalysis/store-weather-data.py
+  ```
+
+The script will:
+
+- Read MongoDB settings from environment variables (preferred) or fall back to `WeatherService.Api/appsettings.json`.
+- Assert a unique compound index on `(timestamp, latitude, longitude)`.
+- Read NetCDF files in weekly time chunks, derive temperature (°C), wind speed (m/s), and wind direction (degrees), and upsert them into the `Forecasts` collection.
+
+Note: `.env` files are intentionally excluded from version control via `.gitignore`.
+
+### Troubleshooting NetCDF "Unknown file format"
+
+If the ETL logs `NetCDF: Unknown file format` when opening `.nc` files:
+
+- Ensure the files are not zero or tiny in size (should be larger than a few KB).
+- Verify the file header: NetCDF classic starts with `CDF`, NetCDF4 (HDF5) starts with `\x89HDF...`.
+- Common causes:
+  - Download was interrupted or produced an HTML/JSON error page saved as `.nc`.
+  - Dataset license was not accepted on the CDS website before requesting downloads.
+  - Using the wrong format (ensure `'format': 'netcdf'` in your CDS request).
+- Fix by re-downloading the affected files after accepting licenses. The ETL will skip invalid files and continue.
+
 ## Example Query
 
 ```http
