@@ -364,9 +364,12 @@ FodyWeavers.xsd
 
 # Python / Jupyter
 **/.venv/
-/.venv/
+/.venv
 WeatherServiceAnalysis/.venv/
 **/__pycache__/
 **/.ipynb_checkpoints/
 .python-version
 .DS_Store
+
+# Datasets
+**era5_land_data/
