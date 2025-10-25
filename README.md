@@ -279,6 +279,24 @@ To seed the MongoDB database with the required collections, run the provided scr
 
 - Ensure MongoDB is running locally or update the connection string in `appsettings.json` if using a remote instance.
 
+### For Running WeatherServiceAnalysis/mongodb-seed.py
+
+This script downloads data from the Copernicus Climate Data Store (CDS).
+
+- **Python:** The script requires a Python environment to run.
+- **cdsapi Library:** You need to install the CDS API client:
+  ```fish
+  pip install cdsapi
+  ```
+- **Copernicus CDS Account:** A free account is required on the [Copernicus Climate Data Store](https://cds.climate.copernicus.eu/).
+- **CDS API Key Configuration:** You need to set up your API key in a file named `.cdsapirc` in your home directory. The file should contain:
+  ```
+  url: https://cds.climate.copernicus.eu/api/v2
+  key: {YOUR_UID}:{YOUR_API_KEY}
+  ```
+  Replace `{YOUR_UID}` and `{YOUR_API_KEY}` with the values from your CDS profile page.
+- **Accepted Dataset Licenses:** Before downloading data for a specific dataset (like `reanalysis-era5-land` used in the script), you must first log in to the CDS website and accept the terms and conditions for that dataset. You typically do this once per dataset on the dataset's download page.
+
 ---
 
 ## Example Query
