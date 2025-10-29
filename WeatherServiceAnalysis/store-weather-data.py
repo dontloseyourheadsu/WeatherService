@@ -58,7 +58,7 @@ COLLECTION_NAME = (
 # --- NetCDF Configuration ---
 # Path pattern to find all NetCDF files (from.env or default)
 # Assumes 'era5_land_data' directory is at the same level as this script
-DEFAULT_NETCDF_PATH_PATTERN = "era5_land_data/*.nc"
+DEFAULT_NETCDF_PATH_PATTERN = "era5_land_data/*-extracted.nc"
 NETCDF_PATH_PATTERN = os.environ.get("NETCDF_PATH_PATTERN", DEFAULT_NETCDF_PATH_PATTERN)
 # Define chunk size for memory management (e.g., process 1 week = 24 * 7 time steps at a time)
 TIME_CHUNK_SIZE = 24 * 7
@@ -68,8 +68,8 @@ def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        # *** THIS IS THE CORRECTED LINE ***
-        handlers=[logging.StreamHandler(sys.stdout)], # Ensure logs go to console
+        # *** THIS IS THE CORRECTED LINE USING YOUR PROVIDED FIX ***
+        handlers=[logging.StreamHandler()], # Ensure logs go to console
     )
 
 def _is_probably_netcdf(path: Path) -> bool:
@@ -178,9 +178,15 @@ def process_netcdf_file(filepath: str, collection):
     # Try common engines. 'scipy' might be needed for older NetCDF3 formats.
     for engine in ("netcdf4", "h5netcdf", "scipy"):
         try:
+            # Determine the time dimension name from the file
+            # Open without chunks first to check dimensions
+            test_ds = xr.open_dataset(filepath, engine=engine)
+            time_dim = 'valid_time' if 'valid_time' in test_ds.dims else 'time'
+            test_ds.close()
+            
             # Open the dataset with Dask-backed chunking for the time dimension.
             # This reads file metadata but defers reading data chunks, keeping memory low initially.
-            ds = xr.open_dataset(filepath, engine=engine, chunks={'time': TIME_CHUNK_SIZE})
+            ds = xr.open_dataset(filepath, engine=engine, chunks={time_dim: TIME_CHUNK_SIZE})
             logging.info(f"Successfully opened {filepath} using engine='{engine}'.")
             break # Stop trying engines once one works
         except Exception as e:
@@ -199,7 +205,9 @@ def process_netcdf_file(filepath: str, collection):
 
     # --- Process Chunks ---
     try:
-        total_steps = len(ds.time)
+        # ERA5-Land uses 'valid_time' instead of 'time'
+        time_dim = 'valid_time' if 'valid_time' in ds.dims else 'time'
+        total_steps = len(ds[time_dim])
         total_chunks = (total_steps + TIME_CHUNK_SIZE - 1) // TIME_CHUNK_SIZE
         logging.info(f"Total time steps: {total_steps}, processing in {total_chunks} chunk(s) of size {TIME_CHUNK_SIZE}...")
 
@@ -213,7 +221,7 @@ def process_netcdf_file(filepath: str, collection):
 
             try:
                 # Select the time slice (this is still lazy)
-                chunk_ds = ds.isel(time=slice(start_step, end_step))
+                chunk_ds = ds.isel({time_dim: slice(start_step, end_step)})
 
                 # --- Transform ---
                 # Trigger Dask computation by loading ONLY this chunk's data into memory
@@ -245,7 +253,7 @@ def process_netcdf_file(filepath: str, collection):
                 logging.info(f"    Transformations complete. Pivoting to DataFrame...")
                 # --- Pivot to DataFrame ---
                 # Select only the needed transformed variables + coordinates for the dataframe
-                # Keep original coordinates 'time', 'latitude', 'longitude'
+                # Keep original coordinates ('valid_time' or 'time', 'latitude', 'longitude')
                 df = chunk_ds[['temperature_c', 'wind_speed_mps', 'wind_direction_deg']].to_dataframe()
 
                 # Drop rows where ALL selected weather variables are NaN
@@ -306,7 +314,9 @@ def prepare_bulk_operations(df: pd.DataFrame) -> list:
     for use with bulk_write, matching the target C# MongoDB schema.
     """
     operations = []
-    required_cols = {'time', 'latitude', 'longitude', 'temperature_c', 'wind_speed_mps', 'wind_direction_deg'}
+    # Support both 'time' and 'valid_time' column names
+    time_col = 'valid_time' if 'valid_time' in df.columns else 'time'
+    required_cols = {time_col, 'latitude', 'longitude', 'temperature_c', 'wind_speed_mps', 'wind_direction_deg'}
     if not required_cols.issubset(df.columns):
         logging.error(f"DataFrame is missing required columns for MongoDB operations. Found: {df.columns}. Required: {required_cols}")
         return operations # Return empty list
@@ -315,7 +325,7 @@ def prepare_bulk_operations(df: pd.DataFrame) -> list:
     for record in df.to_dict('records'):
         try:
             # Ensure timestamp is a Python native datetime object (required by PyMongo)
-            ts = pd.to_datetime(record['time']).to_pydatetime()
+            ts = pd.to_datetime(record[time_col]).to_pydatetime()
             lat = record['latitude']
             lon = record['longitude']
             temp_c_val = record['temperature_c']
@@ -367,7 +377,7 @@ def prepare_bulk_operations(df: pd.DataFrame) -> list:
 
         except Exception as e:
             # Log errors during record processing but continue with others
-            logging.error(f"Error preparing operation for record (Time: {record.get('time')}, Lat: {record.get('latitude')}, Lon: {record.get('longitude')}). Error: {e}", exc_info=False)
+            logging.error(f"Error preparing operation for record (Time: {record.get(time_col)}, Lat: {record.get('latitude')}, Lon: {record.get('longitude')}). Error: {e}", exc_info=False)
             continue # Skip this record
 
     return operations
@@ -423,8 +433,8 @@ def main():
     try:
         # 1. Connect to MongoDB
         client = get_mongo_client(MONGO_URI)
-        db = client         # Select the database
-        collection = db # Select the collection
+        db = client[DB_NAME]         # Select the database
+        collection = db[COLLECTION_NAME] # Select the collection
 
         # 2. Assert Indexes (Crucial for performance and uniqueness)
         logging.info("Setting up database indexes (if they don't exist)...")
