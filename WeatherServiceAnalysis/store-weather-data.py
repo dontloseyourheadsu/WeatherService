@@ -58,18 +58,26 @@ COLLECTION_NAME = (
 # --- NetCDF Configuration ---
 # Path pattern to find all NetCDF files (from.env or default)
 # Assumes 'era5_land_data' directory is at the same level as this script
-DEFAULT_NETCDF_PATH_PATTERN = "era5_land_data/*.nc"
+DEFAULT_NETCDF_PATH_PATTERN = "era5_land_data/*-extracted.nc"
 NETCDF_PATH_PATTERN = os.environ.get("NETCDF_PATH_PATTERN", DEFAULT_NETCDF_PATH_PATTERN)
 # Define chunk size for memory management (e.g., process 1 week = 24 * 7 time steps at a time)
 TIME_CHUNK_SIZE = 24 * 7
+
+# --- MongoDB Batch Configuration ---
+# Maximum number of operations to send to MongoDB in a single bulk_write call
+# This prevents RAM overflow on large datasets
+# Default: 10,000 operations per batch (reasonable for most systems)
+# Can be overridden via environment variable for systems with different memory constraints
+DEFAULT_MONGO_BATCH_SIZE = 10000
+MONGO_BATCH_SIZE = int(os.environ.get("MONGO_BATCH_SIZE", DEFAULT_MONGO_BATCH_SIZE))
 
 def setup_logging():
     """Configures a basic logger."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        # *** THIS IS THE CORRECTED LINE ***
-        handlers=[logging.StreamHandler(sys.stdout)], # Ensure logs go to console
+        # *** THIS IS THE CORRECTED LINE USING YOUR PROVIDED FIX ***
+        handlers=[logging.StreamHandler()], # Ensure logs go to console
     )
 
 def _is_probably_netcdf(path: Path) -> bool:
@@ -178,9 +186,15 @@ def process_netcdf_file(filepath: str, collection):
     # Try common engines. 'scipy' might be needed for older NetCDF3 formats.
     for engine in ("netcdf4", "h5netcdf", "scipy"):
         try:
+            # Determine the time dimension name from the file
+            # Open without chunks first to check dimensions
+            test_ds = xr.open_dataset(filepath, engine=engine)
+            time_dim = 'valid_time' if 'valid_time' in test_ds.dims else 'time'
+            test_ds.close()
+            
             # Open the dataset with Dask-backed chunking for the time dimension.
             # This reads file metadata but defers reading data chunks, keeping memory low initially.
-            ds = xr.open_dataset(filepath, engine=engine, chunks={'time': TIME_CHUNK_SIZE})
+            ds = xr.open_dataset(filepath, engine=engine, chunks={time_dim: TIME_CHUNK_SIZE})
             logging.info(f"Successfully opened {filepath} using engine='{engine}'.")
             break # Stop trying engines once one works
         except Exception as e:
@@ -199,7 +213,9 @@ def process_netcdf_file(filepath: str, collection):
 
     # --- Process Chunks ---
     try:
-        total_steps = len(ds.time)
+        # ERA5-Land uses 'valid_time' instead of 'time'
+        time_dim = 'valid_time' if 'valid_time' in ds.dims else 'time'
+        total_steps = len(ds[time_dim])
         total_chunks = (total_steps + TIME_CHUNK_SIZE - 1) // TIME_CHUNK_SIZE
         logging.info(f"Total time steps: {total_steps}, processing in {total_chunks} chunk(s) of size {TIME_CHUNK_SIZE}...")
 
@@ -213,7 +229,7 @@ def process_netcdf_file(filepath: str, collection):
 
             try:
                 # Select the time slice (this is still lazy)
-                chunk_ds = ds.isel(time=slice(start_step, end_step))
+                chunk_ds = ds.isel({time_dim: slice(start_step, end_step)})
 
                 # --- Transform ---
                 # Trigger Dask computation by loading ONLY this chunk's data into memory
@@ -245,7 +261,7 @@ def process_netcdf_file(filepath: str, collection):
                 logging.info(f"    Transformations complete. Pivoting to DataFrame...")
                 # --- Pivot to DataFrame ---
                 # Select only the needed transformed variables + coordinates for the dataframe
-                # Keep original coordinates 'time', 'latitude', 'longitude'
+                # Keep original coordinates ('valid_time' or 'time', 'latitude', 'longitude')
                 df = chunk_ds[['temperature_c', 'wind_speed_mps', 'wind_direction_deg']].to_dataframe()
 
                 # Drop rows where ALL selected weather variables are NaN
@@ -306,7 +322,9 @@ def prepare_bulk_operations(df: pd.DataFrame) -> list:
     for use with bulk_write, matching the target C# MongoDB schema.
     """
     operations = []
-    required_cols = {'time', 'latitude', 'longitude', 'temperature_c', 'wind_speed_mps', 'wind_direction_deg'}
+    # Support both 'time' and 'valid_time' column names
+    time_col = 'valid_time' if 'valid_time' in df.columns else 'time'
+    required_cols = {time_col, 'latitude', 'longitude', 'temperature_c', 'wind_speed_mps', 'wind_direction_deg'}
     if not required_cols.issubset(df.columns):
         logging.error(f"DataFrame is missing required columns for MongoDB operations. Found: {df.columns}. Required: {required_cols}")
         return operations # Return empty list
@@ -315,7 +333,7 @@ def prepare_bulk_operations(df: pd.DataFrame) -> list:
     for record in df.to_dict('records'):
         try:
             # Ensure timestamp is a Python native datetime object (required by PyMongo)
-            ts = pd.to_datetime(record['time']).to_pydatetime()
+            ts = pd.to_datetime(record[time_col]).to_pydatetime()
             lat = record['latitude']
             lon = record['longitude']
             temp_c_val = record['temperature_c']
@@ -367,39 +385,84 @@ def prepare_bulk_operations(df: pd.DataFrame) -> list:
 
         except Exception as e:
             # Log errors during record processing but continue with others
-            logging.error(f"Error preparing operation for record (Time: {record.get('time')}, Lat: {record.get('latitude')}, Lon: {record.get('longitude')}). Error: {e}", exc_info=False)
+            logging.error(f"Error preparing operation for record (Time: {record.get(time_col)}, Lat: {record.get('latitude')}, Lon: {record.get('longitude')}). Error: {e}", exc_info=False)
             continue # Skip this record
 
     return operations
 
 def load_data_to_mongo(collection, operations: list):
     """
-    Executes a pymongo bulk_write operation to efficiently load/update data in MongoDB.
+    Executes pymongo bulk_write operations in batches to prevent RAM overflow.
+    Processes operations in chunks based on MONGO_BATCH_SIZE configuration.
     """
     if not operations:
         logging.warning("    Load function called but received no operations to execute.")
         return
 
-    try:
-        # `ordered=False` is crucial for performance:
-        result = collection.bulk_write(operations, ordered=False)
+    total_operations = len(operations)
+    batch_size = MONGO_BATCH_SIZE
+    total_batches = (total_operations + batch_size - 1) // batch_size
+    
+    # Track cumulative results
+    total_upserted = 0
+    total_matched = 0
+    total_modified = 0
+    total_errors = 0
+    
+    logging.info(f"    Uploading {total_operations} operations in {total_batches} batch(es) of up to {batch_size} operations each...")
+    
+    for batch_num in range(total_batches):
+        start_idx = batch_num * batch_size
+        end_idx = min(start_idx + batch_size, total_operations)
+        batch_ops = operations[start_idx:end_idx]
+        
+        logging.info(f"      Processing batch {batch_num + 1}/{total_batches} ({len(batch_ops)} operations)...")
+        
+        try:
+            # `ordered=False` is crucial for performance:
+            # It allows MongoDB to continue processing even if some operations fail
+            result = collection.bulk_write(batch_ops, ordered=False)
+            
+            # Accumulate results
+            total_upserted += result.upserted_count
+            total_matched += result.matched_count
+            total_modified += result.modified_count
+            
+            logging.info(
+                f"        Batch {batch_num + 1} complete: "
+                f"Upserted: {result.upserted_count}, "
+                f"Matched: {result.matched_count}, "
+                f"Modified: {result.modified_count}"
+            )
 
-        # Log summary of the bulk write operation result
-        logging.info(
-            f"    MongoDB Bulk Write Result: "
-            f"Upserted (New): {result.upserted_count}, "
-            f"Matched (Existing): {result.matched_count}, "
-            f"Modified: {result.modified_count}"
-        )
-
-    except BulkWriteError as bwe:
-        error_count = len(bwe.details.get('writeErrors',))
-        logging.error(f"    Bulk write operation completed with {error_count} errors.")
-        # Optionally log the first few errors for diagnostics
-        for i, err in enumerate(bwe.details.get('writeErrors',)[:5]):
-             logging.debug(f"      Error {i+1}: Index={err.get('index')}, Code={err.get('code')}, Msg={err.get('errmsg')}")
-    except Exception as e:
-        logging.error(f"    An unexpected error occurred during MongoDB bulk write execution: {e}", exc_info=True)
+        except BulkWriteError as bwe:
+            error_count = len(bwe.details.get('writeErrors', []))
+            total_errors += error_count
+            logging.error(f"        Batch {batch_num + 1} completed with {error_count} error(s).")
+            # Optionally log the first few errors for diagnostics
+            for i, err in enumerate(bwe.details.get('writeErrors', [])[:3]):
+                logging.debug(f"          Error {i+1}: Index={err.get('index')}, Code={err.get('code')}, Msg={err.get('errmsg')}")
+            
+            # Even with errors, some operations may have succeeded
+            if 'nUpserted' in bwe.details:
+                total_upserted += bwe.details.get('nUpserted', 0)
+            if 'nMatched' in bwe.details:
+                total_matched += bwe.details.get('nMatched', 0)
+            if 'nModified' in bwe.details:
+                total_modified += bwe.details.get('nModified', 0)
+                
+        except Exception as e:
+            logging.error(f"        An unexpected error occurred during batch {batch_num + 1} execution: {e}", exc_info=True)
+            total_errors += len(batch_ops)  # Assume all failed
+    
+    # Log final cumulative results
+    logging.info(
+        f"    MongoDB Upload Complete - Total Results: "
+        f"Upserted (New): {total_upserted}, "
+        f"Matched (Existing): {total_matched}, "
+        f"Modified: {total_modified}, "
+        f"Errors: {total_errors}"
+    )
 
 
 # --- 5. Main Execution Block ---
@@ -417,14 +480,15 @@ def main():
     logging.info(f"Collection Name: {COLLECTION_NAME}")
     logging.info(f"NetCDF Path Pattern: {NETCDF_PATH_PATTERN}")
     logging.info(f"Time Chunk Size: {TIME_CHUNK_SIZE} steps")
+    logging.info(f"MongoDB Batch Size: {MONGO_BATCH_SIZE} operations per batch")
     logging.info("---------------------")
 
     client = None # Initialize client to None for finally block
     try:
         # 1. Connect to MongoDB
         client = get_mongo_client(MONGO_URI)
-        db = client         # Select the database
-        collection = db # Select the collection
+        db = client[DB_NAME]         # Select the database
+        collection = db[COLLECTION_NAME] # Select the collection
 
         # 2. Assert Indexes (Crucial for performance and uniqueness)
         logging.info("Setting up database indexes (if they don't exist)...")

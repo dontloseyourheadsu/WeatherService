@@ -279,7 +279,7 @@ To seed the MongoDB database with the required collections, run the provided scr
 
 - Ensure MongoDB is running locally or update the connection string in `appsettings.json` if using a remote instance.
 
-### For Running WeatherServiceAnalysis/mongodb-seed.py
+### For Running WeatherServiceAnalysis/mongodb-download-datasets.py
 
 This script downloads data from the Copernicus Climate Data Store (CDS).
 
@@ -297,6 +297,18 @@ This script downloads data from the Copernicus Climate Data Store (CDS).
   Replace `{YOUR_UID}` and `{YOUR_API_KEY}` with the values from your CDS profile page.
 - **Accepted Dataset Licenses:** Before downloading data for a specific dataset (like `reanalysis-era5-land` used in the script), you must first log in to the CDS website and accept the terms and conditions for that dataset. You typically do this once per dataset on the dataset's download page.
 
+### For Running WeatherServiceAnalysis/store-weather-data.py
+
+This ETL script processes downloaded ERA5-Land data and loads it into MongoDB.
+
+- **Python:** Requires Python 3.8 or later
+- **Required Python packages:** Install all dependencies with:
+  ```fish
+  pip install xarray netCDF4 h5netcdf numpy pandas pymongo python-dotenv dask
+  ```
+- **unzip utility:** Required for extracting NetCDF files from downloaded archives (usually pre-installed on Linux/macOS)
+- **MongoDB:** Must be running and accessible (local or remote instance)
+
 ---
 
 ## WeatherServiceAnalysis: Notebook and ETL (.venv + .env)
@@ -307,7 +319,7 @@ Both the Jupyter notebook (`WeatherServiceAnalysis/analytics.ipynb`) and the ETL
 
 - Ensure the workspace is using the local interpreter at `.venv/bin/python`.
 - In VS Code, select the kernel associated with `.venv` when opening the notebook.
-- If extra packages are needed for the ETL (xarray, netCDF4, numpy, pandas, pymongo, python-dotenv), install them into `.venv`.
+- If extra packages are needed for the ETL (xarray, netCDF4, numpy, pandas, pymongo, python-dotenv, dask), install them into `.venv`.
 
 ### Environment variables (.env)
 
@@ -316,26 +328,106 @@ Both the Jupyter notebook (`WeatherServiceAnalysis/analytics.ipynb`) and the ETL
   - `MONGODB_URI` – MongoDB connection string (defaults to `mongodb://localhost:27017`).
   - `MONGODB_DB` – Database name (defaults to `WeatherDb`).
   - `MONGODB_COLLECTION` – Collection name (defaults to `Forecasts`).
-  - `NETCDF_PATH_PATTERN` – Path pattern to your NetCDF files relative to `WeatherServiceAnalysis/` (defaults to `era5_land_data/*.nc`).
+  - `NETCDF_PATH_PATTERN` – Path pattern to your NetCDF files relative to `WeatherServiceAnalysis/` (defaults to `era5_land_data/*-extracted.nc`).
+  - `MONGO_BATCH_SIZE` – (Optional) Number of operations per MongoDB batch (defaults to `10000`). Adjust based on available RAM.
 - The ETL script also supports legacy names as fallback: `MONGO_URI`, `MONGO_DB_NAME`, `MONGO_COLLECTION_NAME`.
+
+### Downloading ERA5-Land Data
+
+Use the provided download script to fetch historical weather data from the Copernicus Climate Data Store:
+
+```fish
+# From the repo root, activate your virtual environment
+source .venv/bin/activate
+
+# Navigate to the analysis directory
+cd WeatherServiceAnalysis
+
+# Run the download script (requires CDS API setup - see Requirements section)
+python mongodb-download-datasets.py
+```
+
+This will download monthly ERA5-Land data files to `WeatherServiceAnalysis/era5_land_data/` as ZIP archives (with `.nc` extension).
+
+### Extracting NetCDF Files
+
+**Important:** The downloaded `.nc` files are actually ZIP archives that need to be extracted before processing.
+
+Run the extraction script to extract the actual NetCDF files:
+
+```fish
+# From the WeatherServiceAnalysis directory
+./extract-netcdf-files.sh
+```
+
+Or if running from the repo root:
+
+```fish
+./WeatherServiceAnalysis/extract-netcdf-files.sh
+```
+
+This script will:
+
+- Check each `.nc` file in `era5_land_data/`
+- Extract `data_0.nc` from each ZIP archive
+- Rename extracted files with `-extracted.nc` suffix (e.g., `era5-land-mexico-2022-01-extracted.nc`)
+- Skip files that have already been extracted
+- Provide a summary of extracted and skipped files
+
+**Note:** If you prefer to extract manually, you can use:
+
+```fish
+cd WeatherServiceAnalysis/era5_land_data
+for file in *.nc; do
+    base="${file%.nc}"
+    unzip -j "$file" "data_0.nc" -d .
+    mv data_0.nc "${base}-extracted.nc"
+done
+```
 
 ### Running the ETL
 
-- Place your ERA5-Land NetCDF files under `WeatherServiceAnalysis/era5_land_data/` (this folder is git-ignored).
-- Run the script using the `.venv` interpreter:
+After extracting the NetCDF files, load them into MongoDB:
 
-  ```fish
-  # From the repo root
-  ./.venv/bin/python WeatherServiceAnalysis/store-weather-data.py
-  ```
+```fish
+# From the repo root (ensure .venv is activated)
+./.venv/bin/python WeatherServiceAnalysis/store-weather-data.py
+```
 
 The script will:
 
 - Read MongoDB settings from environment variables (preferred) or fall back to `WeatherService.Api/appsettings.json`.
 - Assert a unique compound index on `(timestamp, latitude, longitude)`.
-- Read NetCDF files in weekly time chunks, derive temperature (°C), wind speed (m/s), and wind direction (degrees), and upsert them into the `Forecasts` collection.
+- Read NetCDF files in weekly time chunks, derive temperature (°C), wind speed (m/s), and wind direction (degrees).
+- Upload data to MongoDB in batches (default: 10,000 operations per batch) to prevent RAM overflow.
+- Display progress for each batch showing how many batches have been processed.
+- Upsert records into the `Forecasts` collection (new records are inserted, existing ones are updated).
 
-Note: `.env` files are intentionally excluded from version control via `.gitignore`.
+**Memory Management:**
+
+The script processes data in two levels of batching:
+
+1. **Time chunks:** Reads NetCDF data in weekly chunks (configurable via `TIME_CHUNK_SIZE`)
+2. **MongoDB batches:** Uploads operations in batches of 10,000 (configurable via `MONGO_BATCH_SIZE` environment variable)
+
+If you experience memory issues, you can adjust the batch size:
+
+```fish
+# In your .env file
+MONGO_BATCH_SIZE=5000  # Smaller batches for systems with less RAM
+# or
+MONGO_BATCH_SIZE=20000  # Larger batches for systems with more RAM
+```
+
+**Progress Tracking:**
+
+The script provides detailed logging:
+
+- File processing progress (e.g., "Processing file 3/12")
+- Chunk processing progress (e.g., "Processing chunk 5/52")
+- Batch upload progress (e.g., "Processing batch 2/15")
+- Per-batch statistics (upserted, matched, modified records)
+- Final cumulative statistics for each file
 
 ### Troubleshooting NetCDF "Unknown file format"
 
