@@ -5,6 +5,9 @@ using WeatherService.Application.Models.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add Docker Secrets
+builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
+
 //Add support to logging with SERILOG
 builder.Host.UseSerilog((context, configuration) =>
     configuration.ReadFrom.Configuration(context.Configuration));
