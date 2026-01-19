@@ -1,0 +1,8 @@
+cdsapi>=0.7.0
+xarray
+netCDF4
+h5netcdf
+numpy
+pandas
+pymongo
+dask

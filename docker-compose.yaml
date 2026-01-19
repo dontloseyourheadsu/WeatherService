@@ -1,0 +1,91 @@
+services:
+  mongo:
+    image: mongo:latest
+    container_name: weather-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - weather-network
+
+  api:
+    build:
+      context: .
+      dockerfile: WeatherService.Api/Dockerfile
+    container_name: weather-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - MongoDb__ConnectionUri=${MONGO_URI}
+      - MongoDb__DatabaseName=${MONGO_DB}
+      - MongoDb__Collections__Forecasts=${MONGO_COLLECTION}
+    secrets:
+      - source: geocoding_api_key
+        target: GeocodingApi:ApiKey
+    ports:
+      - "7008:8080"
+    depends_on:
+      - mongo
+    networks:
+      - weather-network
+
+  web:
+    build:
+      context: .
+      dockerfile: WeatherService.WebApp/Dockerfile
+    container_name: weather-web
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - WeatherApi__BaseUrl=http://weather-api:8080
+    ports:
+      - "5000:8080"
+    depends_on:
+      - api
+    networks:
+      - weather-network
+
+  analysis:
+    build:
+      context: ./WeatherServiceAnalysis
+    container_name: weather-analysis
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DB=${MONGO_DB}
+      - CDSAPI_URL=${CDS_URL}
+    secrets:
+      - cds_api_key
+    volumes:
+      - ./WeatherServiceAnalysis/data:/app/data
+    depends_on:
+      - mongo
+    networks:
+      - weather-network
+
+  explorer:
+    build:
+      context: ./WeatherService.MongoDbExplorer
+    container_name: weather-mongo-explorer
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DB=${MONGO_DB}
+      - MODE=gui # Change to 'cli' for command line interface
+    ports:
+      - "8501:8501" # For GUI access
+    stdin_open: true # Required for CLI interaction
+    tty: true        # Required for CLI interaction
+    depends_on:
+      - mongo
+    networks:
+      - weather-network
+
+volumes:
+  mongo_data:
+
+networks:
+  weather-network:
+
+secrets:
+  geocoding_api_key:
+    file: ./secrets/geocoding_api_key
+  cds_api_key:
+    file: ./secrets/cds_api_key
