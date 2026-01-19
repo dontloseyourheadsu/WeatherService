@@ -61,6 +61,23 @@ services:
     networks:
       - weather-network
 
+  explorer:
+    build:
+      context: ./WeatherService.MongoDbExplorer
+    container_name: weather-mongo-explorer
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DB=${MONGO_DB}
+      - MODE=gui # Change to 'cli' for command line interface
+    ports:
+      - "8501:8501" # For GUI access
+    stdin_open: true # Required for CLI interaction
+    tty: true        # Required for CLI interaction
+    depends_on:
+      - mongo
+    networks:
+      - weather-network
+
 volumes:
   mongo_data:
 
