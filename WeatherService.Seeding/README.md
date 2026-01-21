@@ -15,8 +15,9 @@ The Analysis service is the data ingestion engine. It connects to the [Copernicu
 - **Transformation**:
   - Converts Temperature from Kelvin to Celsius.
   - Calculates Wind Speed and Direction from U/V vectors.
-  - Deduplicates data based on timestamp and geolocation.
-- **Resilient Loading**: Uses MongoDB Bulk Writes for performance and handles connection resets gracefully.
+  - Deduplicates data based on unique compound index: `(timestamp, latitude, longitude)`.
+- **Resilient Loading**: Uses MongoDB Bulk Writes for performance and handles duplicate key errors gracefully.
+- **Expanded Scope**: Now configured to download data for North and Central America, covering multiple years (2020-2023).
 
 ## Configuration
 

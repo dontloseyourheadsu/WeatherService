@@ -42,13 +42,27 @@ Key steps:
 5. Train a graph-temporal model to predict next-hour conditions.
 6. Save artifacts for later inference.
 
+## Training Progress and Loss
+
+The pipeline logs training progress to stdout. You will see output like:
+`Epoch 1/20 (5.00%) | Train Loss: 0.962426 | Val Loss: 1.065235`
+
+- **Train Loss**: The prediction error on the training dataset.
+- **Val Loss**: The prediction error on the validation dataset (unseen data).
+- **Interpretation**:
+  - High loss that decreases rapidly indicates the model is learning.
+  - If Val Loss stops decreasing or increases while Train Loss decreases, the model is overfitting.
+  - The model uses MSE (Mean Squared Error). A value around 1.0 (after scaling) prevents extreme errors but suggests further tuning or more data might be needed for high precision.
+
 ## Artifacts
 
-The training run writes to `/app/artifacts` by default:
+The training run writes to `/app/artifacts` by default (mapped to local `./model_artifacts` in `docker-compose`):
 
 - `model.pt` – PyTorch model weights and config
 - `scaler.json` – feature standardization stats
 - `metadata.json` – cluster centers and adjacency matrix
+
+These artifacts **should strictly be ignored** in version control (added to `.gitignore`).
 
 ## Running in Docker
 
