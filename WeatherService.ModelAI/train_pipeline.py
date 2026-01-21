@@ -197,7 +197,7 @@ def stream_aggregate_clusters(cfg: Config, kmeans: MiniBatchKMeans) -> Tuple[np.
     if min_time is None or max_time is None:
         raise RuntimeError("No records found for training.")
 
-    time_index = pd.date_range(min_time, max_time, freq="H", tz="UTC")
+    time_index = pd.date_range(min_time, max_time, freq="h", tz="UTC")
     num_clusters = cfg.num_clusters
     feature_arrays = {
         "temperature": np.full((len(time_index), num_clusters), np.nan, dtype=np.float32),
