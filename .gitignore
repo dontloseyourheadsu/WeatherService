@@ -375,6 +375,10 @@ WeatherServiceAnalysis/.venv/
 **era5_land_data/
 **.nc
 
+# Model Artifacts
+model_artifacts/
+artifacts/
+
 # Environment files
 .env
 **/.env
