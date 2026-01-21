@@ -61,6 +61,23 @@ services:
     networks:
       - weather-network
 
+  model-ai:
+    build:
+      context: .
+      dockerfile: WeatherService.ModelAI/Dockerfile
+    container_name: weather-model-ai
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - MONGO_DB=${MONGO_DB}
+      - MONGO_COLLECTION=${MONGO_COLLECTION}
+      - ARTIFACTS_DIR=/app/artifacts
+    volumes:
+      - ./model_artifacts:/app/artifacts
+    depends_on:
+      - mongo
+    networks:
+      - weather-network
+
   explorer:
     build:
       context: ./WeatherService.MongoDbExplorer

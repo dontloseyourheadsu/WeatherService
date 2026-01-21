@@ -39,11 +39,19 @@ CDS_URL = os.getenv("CDSAPI_URL", "https://cds.climate.copernicus.eu/api")
 CDS_KEY = get_secret("cds_api_key", "8cea242d-8c32-4afa-98ca-ab36c9639277")  # Format: "UID:API-KEY"
 
 # 3. Data Scope Configuration (What to download)
-TARGET_YEAR = 2022
+# We will collect data for recent years to ensure enough volume for training
+TARGET_YEARS = range(2020, 2024)
 # Months to download (1-12). Example: range(1, 13) for all months
 TARGET_MONTHS = range(1, 13) 
-# Area: [North, West, South, East]
-MEXICO_BBOX = [33, -119, 14, -86]
+
+# Defined Regions [North, West, South, East]
+# "Big and spread" regions to ensure data diversity
+TARGET_REGIONS = {
+    "North_America": [60, -130, 20, -60],
+    "Europe": [70, -10, 35, 40],
+    "East_Asia": [50, 100, 10, 150],
+    "South_America": [10, -80, -50, -30],
+}
 
 # 4. File Management
 DATA_DIR = Path("/app/data")  # Matches Docker volume
@@ -96,16 +104,16 @@ def get_days_for_month(year, month):
 #           STEP 1: DOWNLOAD
 # ==========================================
 
-def download_data(client, year, month):
-    """Downloads one month of data from ERA5-Land."""
+def download_data(client, year, month, region_name, area):
+    """Downloads one month of data from ERA5-Land for a specific region."""
     month_str = f"{month:02d}"
-    output_file = DATA_DIR / f"era5-mexico-{year}-{month_str}.nc"
+    output_file = DATA_DIR / f"era5-{region_name}-{year}-{month_str}.nc"
     
     if output_file.exists():
         logging.info(f"File {output_file.name} already exists. Skipping download.")
         return output_file
 
-    logging.info(f"Downloading data for {year}-{month_str}...")
+    logging.info(f"Downloading data for {region_name} | {year}-{month_str}...")
     
     try:
         client.retrieve(
@@ -121,11 +129,12 @@ def download_data(client, year, month):
                 'month': month_str,
                 'day': get_days_for_month(year, month),
                 'time': [f"{h:02d}:00" for h in range(24)],
-                'area': MEXICO_BBOX,
+                'area': area,
                 'format': 'netcdf',
             },
             str(output_file)
         )
+
         logging.info(f"Download complete: {output_file.name}")
         return output_file
     except Exception as e:
@@ -308,23 +317,28 @@ def main():
     init_mongo()
     
     # 3. Process Loop
-    for month in TARGET_MONTHS:
-        # A. Download
-        raw_file = download_data(cds, TARGET_YEAR, month)
-        if not raw_file:
-            continue
-            
-        # B. Extract
-        clean_file = extract_if_zip(raw_file)
-        if not clean_file:
-            continue
-            
-        # C. Transform & Load
-        logging.info(f"Connecting to Mongo for loading {clean_file.name}...")
-        with MongoClient(MONGO_URI) as client:
-            db = client[MONGO_DB]
-            coll = db[MONGO_COLLECTION]
-            process_and_load(clean_file, coll)
+    for year in TARGET_YEARS:
+        logging.info(f"--- Processing Year: {year} ---")
+        for for region_name, region_bbox in TARGET_REGIONS.items():
+                logging.info(f">> Processing Region: {region_name} ({year}-{month:02d})")
+                
+                # A. Download
+                raw_file = download_data(cds, year, month, region_name, region_bbox)
+                if not raw_file:
+                    continue
+                    
+                # B. Extract
+                clean_file = extract_if_zip(raw_file)
+                if not clean_file:
+                    continue
+                    
+                # C. Transform & Load
+                logging.info(f"Connecting to Mongo for loading {clean_file.name}...")
+                with MongoClient(MONGO_URI) as client:
+                    db = client[MONGO_DB]
+                    coll = db[MONGO_COLLECTION]
+                    process_and_load(clean_file, coll)
+                    logging.info(f"Finished processing {year}-{month}")
         
     logging.info("ETL Process Complete.")
 
