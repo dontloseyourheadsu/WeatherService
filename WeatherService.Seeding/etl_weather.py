@@ -39,11 +39,14 @@ CDS_URL = os.getenv("CDSAPI_URL", "https://cds.climate.copernicus.eu/api")
 CDS_KEY = get_secret("cds_api_key", "8cea242d-8c32-4afa-98ca-ab36c9639277")  # Format: "UID:API-KEY"
 
 # 3. Data Scope Configuration (What to download)
-TARGET_YEAR = 2022
+# We will collect data for recent years to ensure enough volume for training
+TARGET_YEARS = range(2020, 2024)
 # Months to download (1-12). Example: range(1, 13) for all months
 TARGET_MONTHS = range(1, 13) 
 # Area: [North, West, South, East]
-MEXICO_BBOX = [33, -119, 14, -86]
+# Expanded to cover North and Central America for better generalization
+# Approx: Top of USA (50), West Coast (-125), Panama (7), East Coast/Atlantic (-60)
+REGION_BBOX = [50, -125, 7, -60]
 
 # 4. File Management
 DATA_DIR = Path("/app/data")  # Matches Docker volume
@@ -121,7 +124,7 @@ def download_data(client, year, month):
                 'month': month_str,
                 'day': get_days_for_month(year, month),
                 'time': [f"{h:02d}:00" for h in range(24)],
-                'area': MEXICO_BBOX,
+                'area': REGION_BBOX,
                 'format': 'netcdf',
             },
             str(output_file)
@@ -308,23 +311,27 @@ def main():
     init_mongo()
     
     # 3. Process Loop
-    for month in TARGET_MONTHS:
-        # A. Download
-        raw_file = download_data(cds, TARGET_YEAR, month)
-        if not raw_file:
-            continue
+    for year in TARGET_YEARS:
+        logging.info(f"--- Processing Year: {year} ---")
+        for month in TARGET_MONTHS:
+            # A. Download
+            raw_file = download_data(cds, year, month)
+            if not raw_file:
+                continue
+                
+            # B. Extract
+            clean_file = extract_if_zip(raw_file)
+            if not clean_file:
+                continue
+                
+            # C. Transform & Load
+            logging.info(f"Connecting to Mongo for loading {clean_file.name}...")
+            with MongoClient(MONGO_URI) as client:
+                db = client[MONGO_DB]
+                coll = db[MONGO_COLLECTION]
+                process_and_load(clean_file, coll)
             
-        # B. Extract
-        clean_file = extract_if_zip(raw_file)
-        if not clean_file:
-            continue
-            
-        # C. Transform & Load
-        logging.info(f"Connecting to Mongo for loading {clean_file.name}...")
-        with MongoClient(MONGO_URI) as client:
-            db = client[MONGO_DB]
-            coll = db[MONGO_COLLECTION]
-            process_and_load(clean_file, coll)
+            logging.info(f"Finished processing {year}-{month}")
         
     logging.info("ETL Process Complete.")
 
