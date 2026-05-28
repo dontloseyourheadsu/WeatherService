@@ -2,6 +2,8 @@ using WeatherService.WebApp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddServiceDefaults();
+
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
@@ -9,16 +11,13 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddHttpClient<IForecastApiClient, ForecastApiClient>((sp, client) =>
 {
     var configuration = sp.GetRequiredService<IConfiguration>();
-    var baseUrl = configuration["WeatherApi:BaseUrl"];
-    if (string.IsNullOrWhiteSpace(baseUrl))
-    {
-        throw new InvalidOperationException("WeatherApi:BaseUrl is not configured.");
-    }
-
+    var baseUrl = configuration["WeatherApi:BaseUrl"] ?? "http://weather-api";
     client.BaseAddress = new Uri(baseUrl);
 });
 
 var app = builder.Build();
+
+app.MapDefaultEndpoints();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
