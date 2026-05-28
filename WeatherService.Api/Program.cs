@@ -5,6 +5,8 @@ using WeatherService.Application.Models.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddServiceDefaults();
+
 // Add Docker Secrets
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 
@@ -32,6 +34,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+app.MapDefaultEndpoints();
 
 // Error handling middleware
 app.UseErrorHandling();

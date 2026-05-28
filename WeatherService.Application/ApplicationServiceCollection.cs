@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using WeatherService.Application.Data;
@@ -43,6 +44,12 @@ public static class ApplicationServiceCollection
         // Register the MongoDB services
         services.AddSingleton<IMongoClient>(sp =>
         {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var connectionString = config.GetConnectionString("WeatherDb");
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                return new MongoClient(connectionString);
+            }
             var settings = sp.GetRequiredService<IOptions<MongoDbSettings>>().Value;
             return new MongoClient(settings.ConnectionUri);
         });
