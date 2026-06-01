@@ -1,0 +1,387 @@
+@model WeatherService.Contracts.Responses.ZoneAnalyticsResponse
+@{
+    ViewData["Title"] = "Weather Service - Historical Analytics";
+    var zones = ViewBag.Zones as List<string> ?? new List<string>();
+    var selectedZone = ViewBag.SelectedZone as string;
+}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    .ws-analytics-layout {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+    .ws-select-card {
+        grid-column: span 12;
+        background: var(--ws-surface);
+        border: 1px solid var(--ws-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .ws-map-card {
+        grid-column: span 12;
+    }
+    @@media (min-width: 900px) {
+        .ws-map-card {
+            grid-column: span 5;
+        }
+        .ws-charts-card {
+            grid-column: span 7;
+        }
+    }
+    .ws-charts-card {
+        grid-column: span 12;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    .ws-analytics-card {
+        background: var(--ws-surface);
+        border: 1px solid var(--ws-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+    .ws-map-container {
+        height: 380px;
+        border-radius: 8px;
+        border: 1px solid var(--ws-border);
+    }
+    .ws-chart-container {
+        position: relative;
+        height: 250px;
+        width: 100%;
+    }
+    .ws-stats-grid {
+        grid-column: span 12;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    .ws-stat-card {
+        background: var(--ws-surface);
+        border: 1px solid var(--ws-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        border-left: 4px solid var(--ws-accent);
+    }
+    .ws-stat-card.cold { border-left-color: var(--ws-cold); }
+    .ws-stat-card.hot { border-left-color: var(--ws-hot); }
+    .ws-stat-card__val {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--ws-text);
+    }
+    .ws-stat-card__lbl {
+        font-size: 0.85rem;
+        color: var(--ws-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .ws-dropdown {
+        background: var(--ws-bg);
+        color: var(--ws-text);
+        border: 1px solid var(--ws-border);
+        padding: 0.6rem 1.2rem;
+        border-radius: 8px;
+        font-size: 1rem;
+        cursor: pointer;
+    }
+    .ws-dropdown:focus {
+        outline: 2px solid var(--ws-accent);
+    }
+</style>
+
+<div class="ws-container">
+    <h1 class="ws-page-title">Historical Weather Analytics</h1>
+    <p style="color: var(--ws-muted); margin-top: -0.5rem; margin-bottom: 1.5rem;">
+        Analyze long-term meteorological trends, spatial sub-zones, and historical weather patterns.
+    </p>
+
+    <!-- Zone Selector -->
+    <div class="ws-select-card">
+        <div>
+            <h2 style="margin: 0; font-size: 1.25rem;">Select Geographic Zone</h2>
+            <p style="margin: 0.25rem 0 0; color: var(--ws-muted); font-size: 0.9rem;">
+                Displaying historical metrics populated by the Open-Meteo seeder.
+            </p>
+        </div>
+        <form method="get" action="/Weather/Analytics">
+            <select name="zone" class="ws-dropdown" onchange="this.form.submit()">
+                <option value="">-- Choose a Zone --</option>
+                @foreach (var z in zones)
+                {
+                    <!option value="@z" @(z == selectedZone ? "selected" : "")>@z</!option>
+                }
+            </select>
+        </form>
+    </div>
+
+    @if (Model == null || Model.History.Count == 0)
+    {
+        <div style="grid-column: span 12; text-align: center; padding: 4rem 2rem; background: var(--ws-surface); border: 1px dashed var(--ws-border); border-radius: 12px; margin-top: 1.5rem;">
+            <span style="font-size: 3rem;">📊</span>
+            <h3 style="margin: 1rem 0 0.5rem; color: var(--ws-text);">No Analytics Data Selected</h3>
+            <p style="color: var(--ws-muted); max-width: 400px; margin: 0 auto;">
+                Please select a zone from the dropdown menu above to query and visualize its 12-month historical temperature, wind vectors, and geographic sub-stations.
+            </p>
+        </div>
+    }
+    else
+    {
+        <div class="ws-analytics-layout">
+            
+            <!-- Statistics Row -->
+            <div class="ws-stats-grid">
+                <div class="ws-stat-card">
+                    <span class="ws-stat-card__lbl">Avg Temperature</span>
+                    <span class="ws-stat-card__val" id="stat-avg-temp">-</span>
+                </div>
+                <div class="ws-stat-card hot">
+                    <span class="ws-stat-card__lbl">Max Temperature</span>
+                    <span class="ws-stat-card__val" id="stat-max-temp">-</span>
+                </div>
+                <div class="ws-stat-card cold">
+                    <span class="ws-stat-card__lbl">Min Temperature</span>
+                    <span class="ws-stat-card__val" id="stat-min-temp">-</span>
+                </div>
+                <div class="ws-stat-card">
+                    <span class="ws-stat-card__lbl">Avg Wind Speed</span>
+                    <span class="ws-stat-card__val" id="stat-avg-wind">-</span>
+                </div>
+            </div>
+
+            <!-- Leaflet Map Card -->
+            <div class="ws-analytics-card ws-map-card">
+                <h3 style="margin-top: 0; margin-bottom: 1rem;">Geographic Sub-zones</h3>
+                <p style="color: var(--ws-muted); font-size: 0.9rem; margin-bottom: 1rem; margin-top: 0;">
+                    Map showing the 3 measurement nodes (Center, North, South) comprising the "@Model.ZoneName" zone.
+                </p>
+                <div id="zone-map" class="ws-map-container"></div>
+            </div>
+
+            <!-- ChartJS Charts Card -->
+            <div class="ws-charts-card">
+                
+                <div class="ws-analytics-card">
+                    <h3 style="margin-top: 0; margin-bottom: 1rem;">Monthly Temperature Profile (°C)</h3>
+                    <div class="ws-chart-container">
+                        <canvas id="tempChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="ws-analytics-card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                    <div>
+                        <h3 style="margin-top: 0; margin-bottom: 1rem;">Monthly Wind Speed (km/h)</h3>
+                        <div class="ws-chart-container" style="height: 200px;">
+                            <canvas id="windChart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 style="margin-top: 0; margin-bottom: 1rem;">Prevailing Wind Direction</h3>
+                        <div class="ws-chart-container" style="height: 200px;">
+                            <canvas id="windDirectionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <script>
+            // Embed historical zone details directly from MVC
+            var zoneData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model));
+
+            document.addEventListener("DOMContentLoaded", function () {
+                if (!zoneData || !zoneData.History || zoneData.History.length === 0) return;
+
+                // 1. Calculate General Aggregations
+                var tempSum = 0;
+                var windSum = 0;
+                var maxTemp = -999;
+                var minTemp = 999;
+                var count = zoneData.History.length;
+
+                zoneData.History.forEach(function (rec) {
+                    tempSum += rec.Temperature;
+                    windSum += rec.WindSpeed;
+                    if (rec.Temperature > maxTemp) maxTemp = rec.Temperature;
+                    if (rec.Temperature < minTemp) minTemp = rec.Temperature;
+                });
+
+                document.getElementById('stat-avg-temp').textContent = (tempSum / count).toFixed(1) + " °C";
+                document.getElementById('stat-max-temp').textContent = maxTemp.toFixed(1) + " °C";
+                document.getElementById('stat-min-temp').textContent = minTemp.toFixed(1) + " °C";
+                document.getElementById('stat-avg-wind').textContent = (windSum / count).toFixed(1) + " km/h";
+
+                // 2. Initialize Leaflet Map
+                if (zoneData.Points && zoneData.Points.length > 0) {
+                    var firstPoint = zoneData.Points[0];
+                    var map = L.map('zone-map').setView([firstPoint.Latitude, firstPoint.Longitude], 10);
+
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+
+                    var labels = ["Center Station", "North Station", "South Station"];
+                    zoneData.Points.forEach(function (pt, index) {
+                        var lbl = labels[index] || ("Station " + (index + 1));
+                        L.marker([pt.Latitude, pt.Longitude])
+                            .addTo(map)
+                            .bindPopup("<b>" + lbl + "</b><br>Lat: " + pt.Latitude.toFixed(4) + "<br>Lon: " + pt.Longitude.toFixed(4));
+                    });
+
+                    // Fit to markers
+                    var group = new L.featureGroup(zoneData.Points.map(function(pt) { return L.marker([pt.Latitude, pt.Longitude]); }));
+                    map.fitBounds(group.getBounds().pad(0.2));
+                }
+
+                // 3. Aggregate Monthly Weather Timeline
+                var monthlyAgg = {}; // key -> { tempSum, windSum, count }
+                zoneData.History.forEach(function (rec) {
+                    var date = new Date(rec.Timestamp);
+                    var key = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+                    if (!monthlyAgg[key]) {
+                        monthlyAgg[key] = { tempSum: 0, windSum: 0, count: 0, sortKey: date.getTime() };
+                    }
+                    monthlyAgg[key].tempSum += rec.Temperature;
+                    monthlyAgg[key].windSum += rec.WindSpeed;
+                    monthlyAgg[key].count += 1;
+                });
+
+                var monthLabels = Object.keys(monthlyAgg).sort(function(a, b) {
+                    return monthlyAgg[a].sortKey - monthlyAgg[b].sortKey;
+                });
+
+                var tempsArray = monthLabels.map(key => (monthlyAgg[key].tempSum / monthlyAgg[key].count).toFixed(1));
+                var windsArray = monthLabels.map(key => (monthlyAgg[key].windSum / monthlyAgg[key].count).toFixed(1));
+
+                // 4. Group Wind Directions (Wind Rose categorization)
+                var directions = { "N": 0, "NE": 0, "E": 0, "SE": 0, "S": 0, "SW": 0, "W": 0, "NW": 0 };
+                zoneData.History.forEach(function (rec) {
+                    var deg = rec.WindDirection;
+                    var sector = "N";
+                    if (deg >= 337.5 || deg < 22.5) sector = "N";
+                    else if (deg >= 22.5 && deg < 67.5) sector = "NE";
+                    else if (deg >= 67.5 && deg < 112.5) sector = "E";
+                    else if (deg >= 112.5 && deg < 157.5) sector = "SE";
+                    else if (deg >= 157.5 && deg < 202.5) sector = "S";
+                    else if (deg >= 202.5 && deg < 247.5) sector = "SW";
+                    else if (deg >= 247.5 && deg < 292.5) sector = "W";
+                    else sector = "NW";
+                    directions[sector] += 1;
+                });
+
+                var isDarkTheme = document.body.getAttribute("data-theme") === "dark";
+                var gridColor = isDarkTheme ? '#2a2f37' : '#e4e8ef';
+                var textColor = isDarkTheme ? '#e6edf3' : '#0b1220';
+
+                // Chart 1: Temperature Line Chart
+                new Chart(document.getElementById('tempChart'), {
+                    type: 'line',
+                    data: {
+                        labels: monthLabels,
+                        datasets: [{
+                            label: 'Average Temperature (°C)',
+                            data: tempsArray,
+                            borderColor: '#61dafb',
+                            backgroundColor: 'rgba(97,218,251,0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: { grid: { color: gridColor }, ticks: { color: textColor } },
+                            y: { grid: { color: gridColor }, ticks: { color: textColor } }
+                        }
+                    }
+                });
+
+                // Chart 2: Wind Speed Bar Chart
+                new Chart(document.getElementById('windChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: monthLabels,
+                        datasets: [{
+                            label: 'Avg Wind Speed (km/h)',
+                            data: windsArray,
+                            backgroundColor: 'rgba(91,188,255,0.7)',
+                            borderColor: '#5bbcff',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: textColor } },
+                            y: { grid: { color: gridColor }, ticks: { color: textColor } }
+                        }
+                    }
+                });
+
+                // Chart 3: Wind Direction Polar Area
+                new Chart(document.getElementById('windDirectionChart'), {
+                    type: 'polarArea',
+                    data: {
+                        labels: Object.keys(directions),
+                        datasets: [{
+                            data: Object.values(directions),
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.6)',
+                                'rgba(75, 192, 192, 0.6)',
+                                'rgba(255, 206, 86, 0.6)',
+                                'rgba(54, 162, 235, 0.6)',
+                                'rgba(153, 102, 255, 0.6)',
+                                'rgba(255, 159, 64, 0.6)',
+                                'rgba(199, 199, 199, 0.6)',
+                                'rgba(83, 102, 255, 0.6)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { color: textColor, font: { size: 9 } }
+                            }
+                        },
+                        scales: {
+                            r: {
+                                grid: { color: gridColor },
+                                angleLines: { color: gridColor },
+                                ticks: { display: false }
+                            }
+                        }
+                    }
+                });
+            });
+        </script>
+    }
+</div>

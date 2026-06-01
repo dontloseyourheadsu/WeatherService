@@ -10,6 +10,8 @@ public class ForecastApiClient(HttpClient httpClient) : IForecastApiClient
         public const string Echo = "/api/forecast/echo";
         public const string ByCoordinates = "/api/forecast/coordinates";
         public const string ByLocation = "/api/forecast/location";
+        public const string AvailableZones = "/api/forecast/zones";
+        public const string ZoneAnalytics = "/api/forecast/zones/{0}/analytics";
     }
 
     public async Task<string> EchoAsync(string message, CancellationToken cancellationToken = default)
@@ -42,5 +44,26 @@ public class ForecastApiClient(HttpClient httpClient) : IForecastApiClient
         }
 
         return await response.Content.ReadFromJsonAsync<ForecastDetailsResponse>(cancellationToken: cancellationToken);
+    }
+
+    public async Task<List<string>?> GetAvailableZonesAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync(Routes.AvailableZones, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+        return await response.Content.ReadFromJsonAsync<List<string>>(cancellationToken: cancellationToken);
+    }
+
+    public async Task<ZoneAnalyticsResponse?> GetZoneAnalyticsAsync(string zone, CancellationToken cancellationToken = default)
+    {
+        var url = string.Format(Routes.ZoneAnalytics, Uri.EscapeDataString(zone));
+        using var response = await httpClient.GetAsync(url, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+        return await response.Content.ReadFromJsonAsync<ZoneAnalyticsResponse>(cancellationToken: cancellationToken);
     }
 }

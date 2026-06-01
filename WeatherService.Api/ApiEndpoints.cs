@@ -1,4 +1,4 @@
-﻿namespace WeatherService.Api;
+namespace WeatherService.Api;
 
 /// <summary>
 /// API Endpoints.
@@ -34,5 +34,15 @@ public static class ApiEndpoints
         /// Path to GET forecast data by location.
         /// </summary>
         public const string GetForecastByLocation = $"{Base}/location";
+
+        /// <summary>
+        /// Path to GET available zones for analytics.
+        /// </summary>
+        public const string GetAvailableZones = $"{Base}/zones";
+
+        /// <summary>
+        /// Path to GET historical zone analytics data.
+        /// </summary>
+        public const string GetZoneAnalytics = $"{Base}/zones/{{zone}}/analytics";
     }
 }

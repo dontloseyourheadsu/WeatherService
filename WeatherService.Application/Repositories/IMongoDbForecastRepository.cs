@@ -1,4 +1,4 @@
-﻿using WeatherService.Application.Models.MongoDb;
+using WeatherService.Application.Models.MongoDb;
 using WeatherService.Application.Utilities;
 
 namespace WeatherService.Application.Repositories;
@@ -31,4 +31,14 @@ public interface IMongoDbForecastRepository
     /// <param name="cancellationToken">Cancellation token for the operation.</param>
     /// <returns>A task representing the asynchronous operation, with a result indicating success or failure.</returns>
     Task<Result> UpdateAsync(MongoDbForecast forecast, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all unique zone names in the database.
+    /// </summary>
+    Task<Result<List<string>>> GetAvailableZonesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all forecasts for a specific zone.
+    /// </summary>
+    Task<Result<List<MongoDbForecast>>> GetForecastsByZoneAsync(string zone, DateTime? start = null, DateTime? end = null, CancellationToken cancellationToken = default);
 }

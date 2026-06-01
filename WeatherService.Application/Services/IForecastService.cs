@@ -1,4 +1,4 @@
-﻿using WeatherService.Application.Models;
+using WeatherService.Application.Models;
 using WeatherService.Application.Utilities;
 
 namespace WeatherService.Application.Services;
@@ -24,4 +24,14 @@ public interface IForecastService
     /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
     /// <returns>Task that represents the asynchronous operation. The task result contains the weather forecast.</returns>
     Task<Result<ForecastDetails>> GetWeatherForecastAsync(string location, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all available zones for analytics.
+    /// </summary>
+    Task<Result<List<string>>> GetAvailableZonesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets historical weather analytics details for a specific zone.
+    /// </summary>
+    Task<Result<ZoneAnalytics>> GetZoneAnalyticsAsync(string zone, CancellationToken cancellationToken = default);
 }

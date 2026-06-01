@@ -9,4 +9,8 @@ public interface IForecastApiClient
     Task<ForecastDetailsResponse?> GetForecastByCoordinatesAsync(double latitude, double longitude, CancellationToken cancellationToken = default);
 
     Task<ForecastDetailsResponse?> GetForecastByLocationAsync(string location, CancellationToken cancellationToken = default);
+
+    Task<List<string>?> GetAvailableZonesAsync(CancellationToken cancellationToken = default);
+
+    Task<WeatherService.Contracts.Responses.ZoneAnalyticsResponse?> GetZoneAnalyticsAsync(string zone, CancellationToken cancellationToken = default);
 }

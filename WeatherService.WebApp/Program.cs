@@ -13,6 +13,10 @@ builder.Services.AddHttpClient<IForecastApiClient, ForecastApiClient>((sp, clien
     var configuration = sp.GetRequiredService<IConfiguration>();
     var baseUrl = configuration["WeatherApi:BaseUrl"] ?? "http://weather-api";
     client.BaseAddress = new Uri(baseUrl);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
 var app = builder.Build();

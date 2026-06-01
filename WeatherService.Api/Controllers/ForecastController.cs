@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using WeatherService.Api.Mapping;
 using WeatherService.Application.Services;
 using WeatherService.Contracts.Responses;
@@ -162,6 +162,63 @@ public class ForecastController : ControllerBase
                 Errors = new List<string> { "An unexpected error occurred." }
             };
             return StatusCode(StatusCodes.Status500InternalServerError, errorResponse);
+        }
+    }
+
+    /// <summary>
+    /// Gets all available zones for analytics.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet(ApiEndpoints.Forecasts.GetAvailableZones)]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetAvailableZones(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _forecastService.GetAvailableZonesAsync(cancellationToken);
+            if (result.IsSuccess)
+            {
+                return Ok(result.Value);
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse { Errors = result.Errors.ToList() });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching available zones.");
+            return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse { Errors = new List<string> { ex.Message } });
+        }
+    }
+
+    /// <summary>
+    /// Gets historical weather analytics details for a specific zone.
+    /// </summary>
+    /// <param name="zone">The zone name.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet(ApiEndpoints.Forecasts.GetZoneAnalytics)]
+    [ProducesResponseType(typeof(ZoneAnalyticsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetZoneAnalytics([FromRoute] string zone, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(zone))
+        {
+            return BadRequest(new ErrorResponse { Errors = new List<string> { "Zone name cannot be empty." } });
+        }
+
+        try
+        {
+            var result = await _forecastService.GetZoneAnalyticsAsync(zone, cancellationToken);
+            if (result.IsSuccess)
+            {
+                return Ok(result.Value.ToZoneAnalyticsResponse());
+            }
+            return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse { Errors = result.Errors.ToList() });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching analytics for zone {Zone}.", zone);
+            return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse { Errors = new List<string> { ex.Message } });
         }
     }
 }

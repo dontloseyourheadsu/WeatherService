@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using WeatherService.Application.Mapping;
 using WeatherService.Application.Models;
 using WeatherService.Application.Repositories;
@@ -161,5 +161,54 @@ public sealed class ForecastService : IForecastService
 
         // Log the successful storage of the forecast
         return Result<ForecastDetails>.Success(mongoModel.ToForecastDetails());
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<List<string>>> GetAvailableZonesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _repository.GetAvailableZonesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<ZoneAnalytics>> GetZoneAnalyticsAsync(string zone, CancellationToken cancellationToken = default)
+    {
+        var forecastsResult = await _repository.GetForecastsByZoneAsync(zone, null, null, cancellationToken);
+        if (forecastsResult.IsFailure)
+        {
+            return Result<ZoneAnalytics>.Failure(forecastsResult.Errors);
+        }
+
+        var forecasts = forecastsResult.Value;
+        var response = new ZoneAnalytics
+        {
+            ZoneName = zone
+        };
+
+        var pointsMap = new System.Collections.Generic.Dictionary<(double, double), ZonePoint>();
+        foreach (var f in forecasts)
+        {
+            var key = (f.Latitude, f.Longitude);
+            if (!pointsMap.ContainsKey(key))
+            {
+                pointsMap[key] = new ZonePoint
+                {
+                    Latitude = f.Latitude,
+                    Longitude = f.Longitude
+                };
+            }
+
+            response.History.Add(new HistoricalRecord
+            {
+                Timestamp = f.Timestamp,
+                Latitude = f.Latitude,
+                Longitude = f.Longitude,
+                Temperature = f.Temperature,
+                WindSpeed = f.WindSpeed,
+                WindDirection = f.WindDirection
+            });
+        }
+
+        response.Points.AddRange(pointsMap.Values);
+        return Result<ZoneAnalytics>.Success(response);
     }
 }
