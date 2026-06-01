@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using WeatherService.Application.Data;
@@ -117,6 +117,47 @@ public class MongoDbForecastRepository : IMongoDbForecastRepository
             // Log the error and return a failure result
             _logger.LogError(ex, "Error updating forecast with Id {Id}.", forecast.Id);
             return Result.Failure($"Failed to update forecast: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<List<string>>> GetAvailableZonesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var zones = await _collection.Distinct(
+                new ExpressionFieldDefinition<MongoDbForecast, string>(f => f.Zone!),
+                Builders<MongoDbForecast>.Filter.Ne(f => f.Zone, null),
+                cancellationToken: cancellationToken
+            ).ToListAsync(cancellationToken);
+            return Result<List<string>>.Success(zones);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting available zones.");
+            return Result<List<string>>.Failure(ex.Message);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<List<MongoDbForecast>>> GetForecastsByZoneAsync(string zone, DateTime? start = null, DateTime? end = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var builder = Builders<MongoDbForecast>.Filter;
+            var filter = builder.Eq(f => f.Zone, zone);
+            if (start.HasValue) filter = builder.And(filter, builder.Gte(f => f.Timestamp, start.Value));
+            if (end.HasValue) filter = builder.And(filter, builder.Lte(f => f.Timestamp, end.Value));
+            
+            var result = await _collection.Find(filter)
+                .SortBy(f => f.Timestamp)
+                .ToListAsync(cancellationToken);
+            return Result<List<MongoDbForecast>>.Success(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting forecasts for zone {Zone}.", zone);
+            return Result<List<MongoDbForecast>>.Failure(ex.Message);
         }
     }
 }
