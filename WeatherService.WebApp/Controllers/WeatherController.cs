@@ -73,4 +73,20 @@ public class WeatherController(IForecastApiClient apiClient, ILogger<WeatherCont
 
         return View("Index", model);
     }
+
+    [HttpGet]
+    public async Task<IActionResult> Analytics(string? zone, CancellationToken cancellationToken)
+    {
+        var zones = await apiClient.GetAvailableZonesAsync(cancellationToken) ?? new List<string>();
+        ViewBag.Zones = zones;
+        ViewBag.SelectedZone = zone;
+
+        if (!string.IsNullOrEmpty(zone))
+        {
+            var analytics = await apiClient.GetZoneAnalyticsAsync(zone, cancellationToken);
+            return View(analytics);
+        }
+
+        return View();
+    }
 }
