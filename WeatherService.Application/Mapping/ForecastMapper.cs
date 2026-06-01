@@ -1,4 +1,4 @@
-﻿using WeatherService.Application.Models;
+using WeatherService.Application.Models;
 using WeatherService.Application.Models.MongoDb;
 using WeatherService.Application.Models.OpenMeteo;
 
@@ -21,7 +21,7 @@ namespace WeatherService.Application.Mapping
         /// <param name="sunrise">Sunrise time for the same calendar day, in local time.</param>
         /// <param name="latitude">Latitude of the forecast location.</param>
         /// <param name="longitude">Longitude of the forecast location.</param>
-        public static MongoDbForecast ToMongoForecast(this OpenMeteoForecastResponse response, int hourlyIndex, DateTime timestampUtc, DateTime sunrise, double latitude, double longitude)
+        public static MongoDbForecast ToMongoForecast(this OpenMeteoForecastResponse response, int hourlyIndex, DateTime timestampUtc, DateTime sunrise, double latitude, double longitude, string? zone = null)
             => new()
             {
                 Timestamp = timestampUtc,
@@ -33,7 +33,8 @@ namespace WeatherService.Application.Mapping
                 WindSpeedUnit = response.HourlyUnits.Wind_Speed_10m,
                 WindDirection = response.Hourly.Wind_Direction_10m[hourlyIndex],
                 WindDirectionUnit = response.HourlyUnits.Wind_Direction_10m,
-                Sunrise = sunrise
+                Sunrise = sunrise,
+                Zone = zone
             };
 
         /// <summary>
