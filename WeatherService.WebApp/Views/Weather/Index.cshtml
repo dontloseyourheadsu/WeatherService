@@ -124,6 +124,12 @@
             <div class="ws-details">
                 @await Html.PartialAsync("_ForecastDetails", forecast)
             </div>
+
+            <!-- Location Map -->
+            <div class="ws-card" style="margin-top: 1rem; grid-column: span 12;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem;">Location Map</h3>
+                <div id="forecast-map" style="height: 280px; border-radius: 8px; border: 1px solid var(--ws-border);"></div>
+            </div>
         </div>
 
         <!-- Tabs for future expansion -->
@@ -152,4 +158,29 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    @if (forecast is not null)
+    {
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                var mapElement = document.getElementById('forecast-map');
+                if (mapElement) {
+                    var lat = @forecast.Latitude;
+                    var lon = @forecast.Longitude;
+                    var map = L.map('forecast-map').setView([lat, lon], 12);
+
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+
+                    L.marker([lat, lon])
+                        .addTo(map)
+                        .bindPopup("<b>Forecast Coordinates</b><br>Lat: " + lat.toFixed(4) + "<br>Lon: " + lon.toFixed(4))
+                        .openPopup();
+                }
+            });
+        </script>
+    }
 }
