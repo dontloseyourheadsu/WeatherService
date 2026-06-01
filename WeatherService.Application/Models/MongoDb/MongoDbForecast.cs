@@ -1,4 +1,4 @@
-﻿using MongoDB.Bson;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace WeatherService.Application.Models.MongoDb;
@@ -74,4 +74,11 @@ public class MongoDbForecast
     /// </summary>
     [BsonElement("sunrise")]
     public DateTime Sunrise { get; set; }
+
+    /// <summary>
+    /// Gets or sets the geographic zone name (e.g., Mexico City, New York).
+    /// </summary>
+    [BsonElement("zone")]
+    [BsonIgnoreIfNull]
+    public string? Zone { get; set; }
 }
