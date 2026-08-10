@@ -46,7 +46,8 @@ services:
 
   analysis:
     build:
-      context: ./WeatherServiceAnalysis
+      context: .
+      dockerfile: WeatherService.Seeding/Dockerfile
     container_name: weather-analysis
     environment:
       - MONGO_URI=${MONGO_URI}
@@ -54,8 +55,6 @@ services:
       - CDSAPI_URL=${CDS_URL}
     secrets:
       - cds_api_key
-    volumes:
-      - ./WeatherServiceAnalysis/data:/app/data
     depends_on:
       - mongo
     networks:

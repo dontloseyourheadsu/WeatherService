@@ -384,4 +384,6 @@ artifacts/
 **/.env
 **/.env.local
 
+# Secrets & Generated Docs
 secrets
+*.pdf

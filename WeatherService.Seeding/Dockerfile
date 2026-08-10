@@ -1,26 +1,12 @@
-# Use a slim python image to keep size down
-FROM python:3.10-slim
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
+WORKDIR /src
+COPY ["WeatherService.Seeding/WeatherService.Seeding.fsproj", "WeatherService.Seeding/"]
+RUN dotnet restore "WeatherService.Seeding/WeatherService.Seeding.fsproj"
+COPY WeatherService.Seeding/ WeatherService.Seeding/
+WORKDIR "/src/WeatherService.Seeding"
+RUN dotnet publish "WeatherService.Seeding.fsproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# Install system dependencies required for NetCDF and HDF5
-# These are necessary for the python 'netCDF4' library to compile/run
-RUN apt-get update && apt-get install -y \
-    libnetcdf-dev \
-    libhdf5-serial-dev \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
+FROM mcr.microsoft.com/dotnet/runtime:10.0-preview AS final
 WORKDIR /app
-
-# Copy requirements and install python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the ETL script
-COPY etl_weather.py .
-
-# Create a directory for data storage (mounted as volume)
-RUN mkdir -p /app/data
-
-# Command to run the script
-CMD ["python", "etl_weather.py"]
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "WeatherService.Seeding.dll"]
